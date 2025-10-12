@@ -1,0 +1,11 @@
+# Dashboard de Vendas - Santa Casa da Misericórdia
+# Requisitos de bibliotecas Python
+
+streamlit>=1.50.0
+pandas>=2.0.0
+plotly>=6.0.0
+numpy>=1.26.0
+scikit-learn>=1.6.0
+openpyxl>=3.1.0
+pyyaml>=6.0
+streamlit-authenticator>=0.4.0
