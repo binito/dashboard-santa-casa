@@ -247,3 +247,4 @@ O dashboard agora suporta:
 - Dashboard básico com visualizações
 - Análise por jogo
 - Gráficos interativos
+# dashboard-santa-casa
