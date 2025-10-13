@@ -1039,6 +1039,254 @@ def exportar_excel_estilizado(df_performance, periodo_str):
     return output
 
 
+def exportar_excel_com_insights_e_graficos(df, insights_list, data_referencia):
+    """
+    Exporta Excel avançado com múltiplas sheets, insights automáticos e gráficos.
+
+    Args:
+        df: DataFrame com todos os dados
+        insights_list: Lista de insights gerados automaticamente
+        data_referencia: Data da última semana
+
+    Returns:
+        BytesIO com arquivo Excel
+    """
+    if not EXCEL_AVAILABLE:
+        return None
+
+    try:
+        from openpyxl.chart import BarChart, PieChart, LineChart, Reference
+        from openpyxl.chart.label import DataLabelList
+
+        output = BytesIO()
+
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Sheet 1: Insights Automáticos
+            df_insights = pd.DataFrame({'Insights Automáticos': insights_list})
+            df_insights.to_excel(writer, sheet_name='Insights', index=False)
+
+            # Sheet 2: Ranking Dinâmico
+            df_ranking = calcular_ranking_dinamico(df)
+            if df_ranking is not None:
+                df_ranking_export = df_ranking[['Posicao_Atual', 'Jogo', 'Vendas_Atual', 'Posicao_Anterior', 'Mudanca']].copy()
+                df_ranking_export.columns = ['Posição', 'Jogo', 'Vendas (€)', 'Posição Anterior', 'Mudança']
+                df_ranking_export.to_excel(writer, sheet_name='Ranking Dinâmico', index=False)
+
+            # Sheet 3: WoW (Week over Week)
+            vendas_wow = calcular_comparacao_wow(df)
+            ultima_semana_wow = vendas_wow[vendas_wow['Data_Emissao'] == data_referencia].dropna(subset=['Crescimento_WoW_%'])
+            if not ultima_semana_wow.empty:
+                df_wow_export = ultima_semana_wow[['Jogo', 'Valor', 'Valor_Semana_Anterior', 'Crescimento_WoW_%', 'Diferenca_Absoluta']].copy()
+                df_wow_export.columns = ['Jogo', 'Vendas Atual (€)', 'Vendas Anterior (€)', 'Crescimento (%)', 'Diferença (€)']
+                df_wow_export.to_excel(writer, sheet_name='WoW', index=False, startrow=1)
+
+            # Sheet 4: Contribuição Percentual
+            df_contrib = calcular_percentagem_contribuicao(df, data_referencia)
+            df_contrib.columns = ['Jogo', 'Vendas (€)', 'Contribuição (%)']
+            df_contrib.to_excel(writer, sheet_name='Contribuição %', index=False, startrow=1)
+
+            # Sheet 5: Velocímetro de Performance
+            velocimetro, _ = calcular_velocimetro_performance(df)
+            vel_data = []
+            for jogo, info in velocimetro.items():
+                vel_data.append({
+                    'Jogo': jogo,
+                    'Valor Atual (€)': info['valor_atual'],
+                    'Média Histórica (€)': info['media_historica'],
+                    'Performance (%)': info['percentual'],
+                    'Status': info['status'],
+                    'Diferença (€)': info['diferenca']
+                })
+            df_vel = pd.DataFrame(vel_data).sort_values('Performance (%)', ascending=False)
+            df_vel.to_excel(writer, sheet_name='Velocímetro', index=False, startrow=1)
+
+            # Obter workbook
+            workbook = writer.book
+
+            # Estilos gerais
+            header_fill = PatternFill(start_color="1F77B4", end_color="1F77B4", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            center_alignment = Alignment(horizontal="center", vertical="center")
+
+            # Formatar todas as sheets
+            for sheet_name in workbook.sheetnames:
+                worksheet = workbook[sheet_name]
+
+                # Formatar cabeçalhos
+                for cell in worksheet[1]:
+                    if cell.value:
+                        cell.fill = header_fill
+                        cell.font = header_font
+                        cell.alignment = center_alignment
+
+                # Ajustar largura das colunas
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if cell.value and len(str(cell.value)) > max_length:
+                                max_length = len(str(cell.value))
+                        except:
+                            pass
+                    adjusted_width = min(max_length + 2, 50)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+
+            # Adicionar gráficos
+            try:
+                # Gráfico na sheet WoW
+                if 'WoW' in workbook.sheetnames:
+                    ws_wow = workbook['WoW']
+                    ws_wow['A1'] = f'Análise Week over Week - {data_referencia.strftime("%d/%m/%Y")}'
+                    ws_wow['A1'].font = Font(bold=True, size=14)
+
+                    # Gráfico de barras para crescimento WoW
+                    if ws_wow.max_row > 2:
+                        chart = BarChart()
+                        chart.title = "Crescimento WoW (%)"
+                        chart.x_axis.title = "Jogo"
+                        chart.y_axis.title = "Crescimento (%)"
+
+                        data = Reference(ws_wow, min_col=4, min_row=2, max_row=min(ws_wow.max_row, 12), max_col=4)
+                        categories = Reference(ws_wow, min_col=1, min_row=3, max_row=min(ws_wow.max_row, 12))
+
+                        chart.add_data(data, titles_from_data=True)
+                        chart.set_categories(categories)
+                        chart.height = 10
+                        chart.width = 20
+
+                        ws_wow.add_chart(chart, "G2")
+
+                # Gráfico na sheet Contribuição
+                if 'Contribuição %' in workbook.sheetnames:
+                    ws_contrib = workbook['Contribuição %']
+                    ws_contrib['A1'] = f'Contribuição Percentual - {data_referencia.strftime("%d/%m/%Y")}'
+                    ws_contrib['A1'].font = Font(bold=True, size=14)
+
+                    # Gráfico de pizza
+                    if ws_contrib.max_row > 2:
+                        chart = PieChart()
+                        chart.title = "Distribuição de Vendas (%)"
+
+                        data = Reference(ws_contrib, min_col=3, min_row=2, max_row=min(ws_contrib.max_row, 12), max_col=3)
+                        categories = Reference(ws_contrib, min_col=1, min_row=3, max_row=min(ws_contrib.max_row, 12))
+
+                        chart.add_data(data, titles_from_data=True)
+                        chart.set_categories(categories)
+                        chart.height = 12
+                        chart.width = 18
+
+                        # Adicionar labels
+                        chart.dataLabels = DataLabelList()
+                        chart.dataLabels.showPercent = True
+
+                        ws_contrib.add_chart(chart, "F2")
+
+                # Gráfico na sheet Velocímetro
+                if 'Velocímetro' in workbook.sheetnames:
+                    ws_vel = workbook['Velocímetro']
+                    ws_vel['A1'] = 'Velocímetro de Performance vs Média Histórica'
+                    ws_vel['A1'].font = Font(bold=True, size=14)
+
+                    # Gráfico de barras comparativo
+                    if ws_vel.max_row > 2:
+                        chart = BarChart()
+                        chart.title = "Atual vs Média Histórica"
+                        chart.x_axis.title = "Jogo"
+                        chart.y_axis.title = "Valor (€)"
+                        chart.grouping = "clustered"
+
+                        # Valor atual
+                        data1 = Reference(ws_vel, min_col=2, min_row=2, max_row=min(ws_vel.max_row, 12), max_col=2)
+                        # Média histórica
+                        data2 = Reference(ws_vel, min_col=3, min_row=2, max_row=min(ws_vel.max_row, 12), max_col=3)
+                        categories = Reference(ws_vel, min_col=1, min_row=3, max_row=min(ws_vel.max_row, 12))
+
+                        chart.add_data(data1, titles_from_data=True)
+                        chart.add_data(data2, titles_from_data=True)
+                        chart.set_categories(categories)
+                        chart.height = 12
+                        chart.width = 20
+
+                        ws_vel.add_chart(chart, "H2")
+
+            except Exception as e:
+                # Se houver erro nos gráficos, continuar sem eles
+                print(f"Aviso: Não foi possível adicionar gráficos ao Excel: {e}")
+
+            # Sheet de Informações (primeira sheet)
+            info_sheet = workbook.create_sheet('📊 Resumo Executivo', 0)
+            info_sheet['A1'] = 'RELATÓRIO DE ANÁLISE SEMANAL AVANÇADA'
+            info_sheet['A1'].font = Font(bold=True, size=16, color="1F77B4")
+            info_sheet.merge_cells('A1:D1')
+
+            info_sheet['A3'] = 'Dashboard de Vendas - Jogos Santa Casa da Misericórdia'
+            info_sheet['A3'].font = Font(bold=True, size=12)
+
+            linha = 5
+            info_sheet[f'A{linha}'] = 'Data do Relatório:'
+            info_sheet[f'B{linha}'] = datetime.now().strftime("%d/%m/%Y %H:%M")
+            linha += 1
+
+            info_sheet[f'A{linha}'] = 'Semana Analisada:'
+            info_sheet[f'B{linha}'] = data_referencia.strftime("%d/%m/%Y")
+            linha += 1
+
+            info_sheet[f'A{linha}'] = 'Versão do Dashboard:'
+            info_sheet[f'B{linha}'] = '2.1'
+            linha += 2
+
+            info_sheet[f'A{linha}'] = 'CONTEÚDO DO RELATÓRIO:'
+            info_sheet[f'A{linha}'].font = Font(bold=True, size=12)
+            linha += 1
+
+            conteudo = [
+                '• Insights Automáticos - Análise inteligente das tendências',
+                '• Ranking Dinâmico - Mudanças de posição entre jogos',
+                '• WoW (Week over Week) - Crescimento semanal',
+                '• Contribuição % - Peso de cada jogo no total',
+                '• Velocímetro - Performance vs média histórica',
+                '• Gráficos visuais incluídos nas sheets'
+            ]
+
+            for item in conteudo:
+                info_sheet[f'A{linha}'] = item
+                linha += 1
+
+            linha += 2
+            info_sheet[f'A{linha}'] = '💡 PRINCIPAIS INSIGHTS:'
+            info_sheet[f'A{linha}'].font = Font(bold=True, size=11, color="FF6B35")
+            linha += 1
+
+            for i, insight in enumerate(insights_list[:5], 1):
+                info_sheet[f'A{linha}'] = f"{i}. {insight}"
+                linha += 1
+
+        output.seek(0)
+        return output
+
+    except Exception as e:
+        print(f"Erro ao criar Excel avançado: {e}")
+        return None
+
+
+def calcular_comparacao_wow(df):
+    """Calcula comparação Week over Week."""
+    df_semana = df.copy()
+
+    # Agrupar por data de emissão e jogo
+    vendas_semana = df_semana.groupby(['Data_Emissao', 'Jogo'])['Valor'].sum().reset_index()
+    vendas_semana = vendas_semana.sort_values(['Jogo', 'Data_Emissao'])
+
+    # Calcular crescimento WoW
+    vendas_semana['Valor_Semana_Anterior'] = vendas_semana.groupby('Jogo')['Valor'].shift(1)
+    vendas_semana['Crescimento_WoW_%'] = ((vendas_semana['Valor'] - vendas_semana['Valor_Semana_Anterior']) /
+                                           vendas_semana['Valor_Semana_Anterior'] * 100)
+    vendas_semana['Diferenca_Absoluta'] = vendas_semana['Valor'] - vendas_semana['Valor_Semana_Anterior']
+
+    return vendas_semana
+
+
 def calcular_comparacao_mom(df):
     """Calcula comparação Month over Month."""
     df_mes = df.copy()
@@ -1099,6 +1347,186 @@ def prever_atingimento_objetivo(df_jogo, objetivo_semanal, semanas_restantes=4):
         'objetivo': objetivo_semanal,
         'probabilidade_%': probabilidade
     }
+
+
+def calcular_ranking_dinamico(df):
+    """Calcula ranking de jogos e mudanças em relação à semana anterior."""
+    # Obter últimas duas semanas
+    datas_unicas = sorted(df['Data_Emissao'].unique(), reverse=True)
+
+    if len(datas_unicas) < 2:
+        return None
+
+    ultima_semana = datas_unicas[0]
+    penultima_semana = datas_unicas[1]
+
+    # Rankings
+    rank_atual = df[df['Data_Emissao'] == ultima_semana].groupby('Jogo')['Valor'].sum().sort_values(ascending=False)
+    rank_anterior = df[df['Data_Emissao'] == penultima_semana].groupby('Jogo')['Valor'].sum().sort_values(ascending=False)
+
+    # Criar DataFrame com mudanças
+    df_rank = pd.DataFrame({
+        'Jogo': rank_atual.index,
+        'Vendas_Atual': rank_atual.values,
+        'Posicao_Atual': range(1, len(rank_atual) + 1)
+    })
+
+    # Adicionar posição anterior
+    rank_anterior_dict = {jogo: pos + 1 for pos, jogo in enumerate(rank_anterior.index)}
+    df_rank['Posicao_Anterior'] = df_rank['Jogo'].map(rank_anterior_dict)
+    df_rank['Posicao_Anterior'] = df_rank['Posicao_Anterior'].fillna(len(df_rank) + 1)  # Novos jogos vão para última posição
+
+    # Calcular mudança
+    df_rank['Mudanca'] = df_rank['Posicao_Anterior'] - df_rank['Posicao_Atual']
+
+    # Adicionar indicador visual
+    def get_indicador(mudanca):
+        if mudanca > 0:
+            return f"⬆️ +{int(mudanca)}"
+        elif mudanca < 0:
+            return f"⬇️ {int(mudanca)}"
+        else:
+            return "➡️ 0"
+
+    df_rank['Indicador'] = df_rank['Mudanca'].apply(get_indicador)
+    df_rank['Data_Atual'] = ultima_semana
+    df_rank['Data_Anterior'] = penultima_semana
+
+    return df_rank
+
+
+def calcular_percentagem_contribuicao(df, data_referencia=None):
+    """Calcula percentagem de contribuição de cada jogo para o total."""
+    if data_referencia is None:
+        # Usar última data disponível
+        data_referencia = df['Data_Emissao'].max()
+
+    df_semana = df[df['Data_Emissao'] == data_referencia]
+    vendas_por_jogo = df_semana.groupby('Jogo')['Valor'].sum()
+    total = vendas_por_jogo.sum()
+
+    percentagens = (vendas_por_jogo / total * 100).sort_values(ascending=False)
+
+    df_contrib = pd.DataFrame({
+        'Jogo': percentagens.index,
+        'Valor': vendas_por_jogo.values,
+        'Percentagem': percentagens.values
+    })
+
+    return df_contrib
+
+
+def calcular_velocimetro_performance(df, janela_historica=8):
+    """
+    Calcula indicador de performance comparando última semana com média histórica.
+
+    Returns:
+        Dict com informações de performance para cada jogo
+    """
+    datas_unicas = sorted(df['Data_Emissao'].unique(), reverse=True)
+
+    if len(datas_unicas) < janela_historica + 1:
+        janela_historica = max(len(datas_unicas) - 1, 1)
+
+    ultima_semana = datas_unicas[0]
+
+    # Vendas da última semana
+    vendas_ultima = df[df['Data_Emissao'] == ultima_semana].groupby('Jogo')['Valor'].sum()
+
+    # Média histórica (excluindo última semana)
+    datas_historicas = datas_unicas[1:janela_historica+1]
+    df_historico = df[df['Data_Emissao'].isin(datas_historicas)]
+    media_historica = df_historico.groupby('Jogo')['Valor'].mean()
+
+    # Calcular performance
+    resultados = {}
+    for jogo in vendas_ultima.index:
+        valor_atual = vendas_ultima[jogo]
+        media_hist = media_historica.get(jogo, valor_atual)
+
+        if media_hist > 0:
+            percentual = (valor_atual / media_hist) * 100
+        else:
+            percentual = 100
+
+        # Determinar status
+        if percentual >= 110:
+            status = "🟢 Excelente"
+            cor = "green"
+        elif percentual >= 95:
+            status = "🟡 Normal"
+            cor = "orange"
+        else:
+            status = "🔴 Abaixo"
+            cor = "red"
+
+        resultados[jogo] = {
+            'valor_atual': valor_atual,
+            'media_historica': media_hist,
+            'percentual': percentual,
+            'status': status,
+            'cor': cor,
+            'diferenca': valor_atual - media_hist
+        }
+
+    return resultados, ultima_semana
+
+
+def gerar_insights_automaticos(df, janela_medias=[4, 8]):
+    """Gera insights automáticos sobre as tendências de vendas."""
+    insights = []
+
+    datas_unicas = sorted(df['Data_Emissao'].unique(), reverse=True)
+    if len(datas_unicas) < 2:
+        return ["Dados insuficientes para gerar insights"]
+
+    ultima_semana = datas_unicas[0]
+
+    # Análise WoW
+    vendas_wow = calcular_comparacao_wow(df)
+    ultimas_wow = vendas_wow[vendas_wow['Data_Emissao'] == ultima_semana].dropna(subset=['Crescimento_WoW_%'])
+
+    for _, row in ultimas_wow.iterrows():
+        crescimento = row['Crescimento_WoW_%']
+        if abs(crescimento) >= 5:  # Só reportar mudanças significativas
+            direcao = "cresceu" if crescimento > 0 else "caiu"
+            insights.append(f"📊 {row['Jogo']}: {direcao} {abs(crescimento):.1f}% em relação à semana anterior (€{row['Diferenca_Absoluta']:+,.2f})")
+
+    # Análise de médias móveis
+    for janela in janela_medias:
+        if len(datas_unicas) >= janela:
+            datas_janela = datas_unicas[:janela]
+            df_janela = df[df['Data_Emissao'].isin(datas_janela)]
+
+            for jogo in df['Jogo'].unique():
+                df_jogo = df_janela[df_janela['Jogo'] == jogo]
+                if len(df_jogo) >= janela:
+                    media_janela = df_jogo['Valor'].mean()
+                    valor_atual = df_jogo[df_jogo['Data_Emissao'] == ultima_semana]['Valor'].sum()
+
+                    if valor_atual > 0 and media_janela > 0:
+                        diff_percentual = ((valor_atual - media_janela) / media_janela) * 100
+
+                        if abs(diff_percentual) >= 10:
+                            direcao = "acima" if diff_percentual > 0 else "abaixo"
+                            insights.append(f"📈 {jogo}: {abs(diff_percentual):.1f}% {direcao} da média das últimas {janela} semanas")
+
+    # Velocímetro de performance
+    velocimetro, _ = calcular_velocimetro_performance(df)
+    for jogo, info in velocimetro.items():
+        if info['percentual'] >= 120:
+            insights.append(f"⭐ {jogo}: Performance excepcional! {info['percentual']:.0f}% da média histórica")
+        elif info['percentual'] < 80:
+            insights.append(f"⚠️ {jogo}: Performance abaixo do esperado ({info['percentual']:.0f}% da média histórica)")
+
+    # Top performers
+    vendas_ultima = df[df['Data_Emissao'] == ultima_semana].groupby('Jogo')['Valor'].sum().sort_values(ascending=False)
+    if len(vendas_ultima) > 0:
+        top_jogo = vendas_ultima.index[0]
+        top_valor = vendas_ultima.values[0]
+        insights.insert(0, f"🏆 Destaque da semana: {top_jogo} com €{top_valor:,.2f}")
+
+    return insights if insights else ["Sem insights significativos para esta semana"]
 
 
 def calcular_performance_objetivo(valor_real, objetivo):
@@ -2122,6 +2550,488 @@ def pagina_remuneracao(df):
             st.info("📊 Excel: Instale openpyxl para exportar em Excel")
 
 
+def pagina_analise_semanal_avancada(df):
+    """Análise semanal avançada com WoW, ranking dinâmico, percentagens e velocímetro."""
+    st.markdown('<h1 class="main-header">🔬 Análise Semanal Avançada</h1>', unsafe_allow_html=True)
+    st.caption("💡 Análise detalhada das últimas semanas com comparações WoW, rankings e insights automáticos")
+
+    # Verificar dados suficientes
+    datas_unicas = sorted(df['Data_Emissao'].unique(), reverse=True)
+    if len(datas_unicas) < 2:
+        st.warning("Dados insuficientes para análise semanal. São necessárias pelo menos 2 semanas de dados.")
+        return
+
+    ultima_semana = datas_unicas[0]
+    penultima_semana = datas_unicas[1]
+
+    # Header com informação da semana
+    st.info(f"📅 Semana Atual: **{ultima_semana.strftime('%d/%m/%Y')}** | Semana Anterior: **{penultima_semana.strftime('%d/%m/%Y')}**")
+
+    # Insights Automáticos
+    st.subheader("💡 Insights Automáticos")
+    with st.spinner("Gerando insights..."):
+        insights = gerar_insights_automaticos(df, janela_medias=[4, 8])
+
+    for insight in insights[:10]:  # Mostrar top 10 insights
+        st.markdown(f"- {insight}")
+
+    st.markdown("---")
+
+    # Tabs para diferentes análises
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 WoW (Semana a Semana)",
+        "🏆 Ranking Dinâmico",
+        "🥧 Contribuição %",
+        "🎯 Velocímetro Performance",
+        "📈 Médias Móveis"
+    ])
+
+    with tab1:
+        st.subheader("Comparação Week over Week (WoW)")
+        st.caption("Análise de crescimento semanal")
+
+        # Calcular WoW
+        vendas_wow = calcular_comparacao_wow(df)
+
+        # Filtro de jogos
+        jogos_disponiveis = sorted(df['Jogo'].unique())
+        jogos_selecionados_wow = st.multiselect(
+            "Selecionar Jogos para Análise WoW",
+            jogos_disponiveis,
+            default=jogos_disponiveis[:5] if len(jogos_disponiveis) >= 5 else jogos_disponiveis,
+            key="wow_jogos"
+        )
+
+        if jogos_selecionados_wow:
+            vendas_wow_filtrado = vendas_wow[vendas_wow['Jogo'].isin(jogos_selecionados_wow)]
+
+            # Últimas 8 semanas
+            ultimas_datas = datas_unicas[:8]
+            vendas_wow_recente = vendas_wow_filtrado[vendas_wow_filtrado['Data_Emissao'].isin(ultimas_datas)]
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Gráfico de vendas
+                fig = px.line(
+                    vendas_wow_recente,
+                    x='Data_Emissao',
+                    y='Valor',
+                    color='Jogo',
+                    markers=True,
+                    title="Vendas Semanais (Últimas 8 Semanas)",
+                    labels={'Data_Emissao': 'Data', 'Valor': 'Vendas (€)'}
+                )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                # Gráfico de crescimento WoW
+                vendas_wow_sem_na = vendas_wow_recente.dropna(subset=['Crescimento_WoW_%'])
+
+                fig = px.bar(
+                    vendas_wow_sem_na,
+                    x='Data_Emissao',
+                    y='Crescimento_WoW_%',
+                    color='Jogo',
+                    title="Crescimento WoW (%)",
+                    labels={'Data_Emissao': 'Data', 'Crescimento_WoW_%': 'Crescimento (%)'},
+                    barmode='group'
+                )
+                fig.add_hline(y=0, line_dash="dash", line_color="red", annotation_text="Zero")
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Tabela detalhada da última semana
+            st.subheader(f"📋 Detalhes da Semana de {ultima_semana.strftime('%d/%m/%Y')}")
+            ultima_semana_data = vendas_wow_filtrado[vendas_wow_filtrado['Data_Emissao'] == ultima_semana].dropna(subset=['Crescimento_WoW_%'])
+
+            if not ultima_semana_data.empty:
+                tabela_wow = ultima_semana_data[['Jogo', 'Valor', 'Valor_Semana_Anterior', 'Crescimento_WoW_%', 'Diferenca_Absoluta']].copy()
+                tabela_wow = tabela_wow.sort_values('Crescimento_WoW_%', ascending=False)
+                tabela_wow['Valor'] = tabela_wow['Valor'].apply(lambda x: f"€{x:,.2f}")
+                tabela_wow['Valor_Semana_Anterior'] = tabela_wow['Valor_Semana_Anterior'].apply(lambda x: f"€{x:,.2f}")
+                tabela_wow['Crescimento_WoW_%'] = tabela_wow['Crescimento_WoW_%'].apply(lambda x: f"{x:+.1f}%")
+                tabela_wow['Diferenca_Absoluta'] = tabela_wow['Diferenca_Absoluta'].apply(lambda x: f"€{x:+,.2f}")
+                tabela_wow.columns = ['Jogo', 'Vendas Atual', 'Vendas Anterior', 'Crescimento %', 'Diferença €']
+
+                st.dataframe(tabela_wow, use_container_width=True, hide_index=True)
+            else:
+                st.info("Sem dados WoW para a última semana")
+
+            # Estatísticas WoW
+            st.subheader("📊 Estatísticas WoW")
+            col1, col2, col3, col4 = st.columns(4)
+
+            crescimento_medio = vendas_wow_sem_na['Crescimento_WoW_%'].mean()
+            crescimento_max = vendas_wow_sem_na['Crescimento_WoW_%'].max()
+            crescimento_min = vendas_wow_sem_na['Crescimento_WoW_%'].min()
+            semanas_positivas = (vendas_wow_sem_na['Crescimento_WoW_%'] > 0).sum()
+
+            with col1:
+                st.metric("📈 Crescimento Médio", f"{crescimento_medio:.1f}%")
+            with col2:
+                st.metric("⬆️ Máximo", f"{crescimento_max:.1f}%")
+            with col3:
+                st.metric("⬇️ Mínimo", f"{crescimento_min:.1f}%")
+            with col4:
+                st.metric("✅ Semanas Positivas", f"{semanas_positivas}")
+
+    with tab2:
+        st.subheader("🏆 Ranking Dinâmico de Jogos")
+        st.caption("Mudanças de posição no ranking em relação à semana anterior")
+
+        df_ranking = calcular_ranking_dinamico(df)
+
+        if df_ranking is not None:
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                # Tabela de ranking
+                tabela_rank = df_ranking[['Posicao_Atual', 'Jogo', 'Vendas_Atual', 'Posicao_Anterior', 'Indicador']].copy()
+                tabela_rank['Vendas_Atual'] = tabela_rank['Vendas_Atual'].apply(lambda x: f"€{x:,.2f}")
+                tabela_rank['Posicao_Anterior'] = tabela_rank['Posicao_Anterior'].apply(lambda x: f"#{int(x)}")
+                tabela_rank.columns = ['#', 'Jogo', 'Vendas', 'Posição Anterior', 'Mudança']
+
+                st.dataframe(tabela_rank, use_container_width=True, hide_index=True, height=600)
+
+            with col2:
+                # Estatísticas de mudanças
+                st.markdown("### 📊 Estatísticas")
+
+                maiores_subidas = df_ranking[df_ranking['Mudanca'] > 0].nlargest(3, 'Mudanca')
+                maiores_descidas = df_ranking[df_ranking['Mudanca'] < 0].nsmallest(3, 'Mudanca')
+
+                if not maiores_subidas.empty:
+                    st.markdown("**🚀 Maiores Subidas:**")
+                    for _, row in maiores_subidas.iterrows():
+                        st.success(f"{row['Jogo']}: +{int(row['Mudanca'])} posições")
+
+                if not maiores_descidas.empty:
+                    st.markdown("**⬇️ Maiores Descidas:**")
+                    for _, row in maiores_descidas.iterrows():
+                        st.error(f"{row['Jogo']}: {int(row['Mudanca'])} posições")
+
+                # Gráfico de mudanças
+                fig = px.bar(
+                    df_ranking,
+                    x='Mudanca',
+                    y='Jogo',
+                    orientation='h',
+                    title="Mudanças de Posição",
+                    labels={'Mudanca': 'Posições', 'Jogo': ''},
+                    color='Mudanca',
+                    color_continuous_scale='RdYlGn',
+                    color_continuous_midpoint=0
+                )
+                fig.update_layout(height=400, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Dados insuficientes para calcular ranking dinâmico")
+
+    with tab3:
+        st.subheader("🥧 Percentagem de Contribuição")
+        st.caption("Contribuição de cada jogo para o total de vendas")
+
+        # Seletor de semana
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            data_selecionada = st.selectbox(
+                "Selecionar Semana",
+                datas_unicas[:10],  # Últimas 10 semanas
+                format_func=lambda x: x.strftime('%d/%m/%Y'),
+                key="contrib_data"
+            )
+
+        # Calcular contribuição
+        df_contrib = calcular_percentagem_contribuicao(df, data_selecionada)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Gráfico de pizza
+            fig = px.pie(
+                df_contrib,
+                values='Percentagem',
+                names='Jogo',
+                title=f"Distribuição de Vendas - {data_selecionada.strftime('%d/%m/%Y')}",
+                hole=0.4
+            )
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            # Tabela detalhada
+            tabela_contrib = df_contrib.copy()
+            tabela_contrib['Valor'] = tabela_contrib['Valor'].apply(lambda x: f"€{x:,.2f}")
+            tabela_contrib['Percentagem'] = tabela_contrib['Percentagem'].apply(lambda x: f"{x:.2f}%")
+
+            st.markdown("### 📋 Detalhes")
+            st.dataframe(tabela_contrib, use_container_width=True, hide_index=True, height=500)
+
+            # Total
+            total = df_contrib['Valor'].apply(lambda x: float(x.replace('€', '').replace(',', '')) if isinstance(x, str) else x).sum()
+            st.metric("💰 Total da Semana", f"€{df[df['Data_Emissao'] == data_selecionada]['Valor'].sum():,.2f}")
+
+        # Comparação temporal de contribuições
+        st.subheader("📈 Evolução das Contribuições (%)")
+
+        # Top 5 jogos por contribuição atual
+        top_jogos = df_contrib.head(5)['Jogo'].tolist()
+
+        # Calcular contribuições ao longo do tempo
+        contrib_temporal = []
+        for data in datas_unicas[:12]:  # Últimas 12 semanas
+            df_temp = calcular_percentagem_contribuicao(df, data)
+            df_temp['Data'] = data
+            contrib_temporal.append(df_temp)
+
+        df_contrib_temporal = pd.concat(contrib_temporal)
+        df_contrib_temporal = df_contrib_temporal[df_contrib_temporal['Jogo'].isin(top_jogos)]
+
+        fig = px.line(
+            df_contrib_temporal,
+            x='Data',
+            y='Percentagem',
+            color='Jogo',
+            markers=True,
+            title=f"Evolução da Contribuição % - Top 5 Jogos",
+            labels={'Percentagem': 'Contribuição (%)', 'Data': 'Data'}
+        )
+        fig.update_layout(height=400)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with tab4:
+        st.subheader("🎯 Velocímetro de Performance")
+        st.caption("Comparação da última semana com a média histórica")
+
+        # Controles
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            janela_velocimetro = st.slider(
+                "Semanas Históricas",
+                min_value=4,
+                max_value=12,
+                value=8,
+                key="vel_janela"
+            )
+
+        # Calcular velocímetro
+        velocimetro, data_atual = calcular_velocimetro_performance(df, janela_velocimetro)
+
+        # Criar DataFrame para visualização
+        vel_data = []
+        for jogo, info in velocimetro.items():
+            vel_data.append({
+                'Jogo': jogo,
+                'Valor Atual': info['valor_atual'],
+                'Média Histórica': info['media_historica'],
+                'Performance (%)': info['percentual'],
+                'Status': info['status'],
+                'Diferença (€)': info['diferenca']
+            })
+
+        df_vel = pd.DataFrame(vel_data).sort_values('Performance (%)', ascending=False)
+
+        # Gráficos gauge para top jogos
+        st.subheader(f"📊 Performance vs Média de {janela_velocimetro} Semanas")
+
+        # Gráfico de barras comparativo
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            fig = go.Figure()
+
+            fig.add_trace(go.Bar(
+                name='Valor Atual',
+                x=df_vel['Jogo'],
+                y=df_vel['Valor Atual'],
+                marker_color='lightblue'
+            ))
+
+            fig.add_trace(go.Bar(
+                name='Média Histórica',
+                x=df_vel['Jogo'],
+                y=df_vel['Média Histórica'],
+                marker_color='orange'
+            ))
+
+            fig.update_layout(
+                title="Comparação: Atual vs Média Histórica",
+                xaxis_title="Jogo",
+                yaxis_title="Valor (€)",
+                barmode='group',
+                height=500
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            # Tabela de performance
+            tabela_vel = df_vel[['Status', 'Jogo', 'Performance (%)']].copy()
+            tabela_vel['Performance (%)'] = tabela_vel['Performance (%)'].apply(lambda x: f"{x:.0f}%")
+
+            st.dataframe(tabela_vel, use_container_width=True, hide_index=True, height=500)
+
+        # Detalhes numéricos
+        st.subheader("📋 Detalhes de Performance")
+        tabela_vel_det = df_vel.copy()
+        tabela_vel_det['Valor Atual'] = tabela_vel_det['Valor Atual'].apply(lambda x: f"€{x:,.2f}")
+        tabela_vel_det['Média Histórica'] = tabela_vel_det['Média Histórica'].apply(lambda x: f"€{x:,.2f}")
+        tabela_vel_det['Performance (%)'] = tabela_vel_det['Performance (%)'].apply(lambda x: f"{x:.1f}%")
+        tabela_vel_det['Diferença (€)'] = tabela_vel_det['Diferença (€)'].apply(lambda x: f"€{x:+,.2f}")
+
+        st.dataframe(tabela_vel_det, use_container_width=True, hide_index=True)
+
+    with tab5:
+        st.subheader("📈 Análise de Médias Móveis")
+        st.caption("Suavização de tendências com múltiplas janelas temporais")
+
+        # Seletor de jogo
+        jogo_mm = st.selectbox(
+            "Selecionar Jogo",
+            sorted(df['Jogo'].unique()),
+            key="mm_jogo"
+        )
+
+        # Janelas de média móvel
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            janela_1 = st.number_input("Janela 1 (semanas)", min_value=2, max_value=12, value=4, key="mm_j1")
+        with col2:
+            janela_2 = st.number_input("Janela 2 (semanas)", min_value=2, max_value=12, value=8, key="mm_j2")
+        with col3:
+            mostrar_objetivo_mm = st.checkbox("Mostrar Objetivo", value=True, key="mm_obj")
+
+        # Calcular médias móveis
+        df_jogo_mm = df[df['Jogo'] == jogo_mm].copy()
+        vendas_temporal = df_jogo_mm.groupby('Data_Emissao')['Valor'].sum().sort_index()
+
+        mm_1 = vendas_temporal.rolling(window=janela_1, min_periods=1).mean()
+        mm_2 = vendas_temporal.rolling(window=janela_2, min_periods=1).mean()
+
+        # Gráfico
+        fig = go.Figure()
+
+        # Vendas reais
+        fig.add_trace(go.Scatter(
+            x=vendas_temporal.index,
+            y=vendas_temporal.values,
+            mode='lines+markers',
+            name='Vendas Reais',
+            line=dict(color='lightgray', width=1),
+            marker=dict(size=4)
+        ))
+
+        # Média móvel 1
+        fig.add_trace(go.Scatter(
+            x=mm_1.index,
+            y=mm_1.values,
+            mode='lines',
+            name=f'MM {janela_1} semanas',
+            line=dict(color='blue', width=2)
+        ))
+
+        # Média móvel 2
+        fig.add_trace(go.Scatter(
+            x=mm_2.index,
+            y=mm_2.values,
+            mode='lines',
+            name=f'MM {janela_2} semanas',
+            line=dict(color='green', width=2)
+        ))
+
+        # Objetivo
+        if mostrar_objetivo_mm and jogo_mm in OBJETIVOS_SEMANAIS:
+            objetivo = OBJETIVOS_SEMANAIS[jogo_mm]
+            fig.add_trace(go.Scatter(
+                x=vendas_temporal.index,
+                y=[objetivo] * len(vendas_temporal),
+                mode='lines',
+                name='Objetivo Semanal',
+                line=dict(color='red', width=2, dash='dash')
+            ))
+
+        fig.update_layout(
+            title=f"Médias Móveis - {jogo_mm}",
+            xaxis_title="Data",
+            yaxis_title="Vendas (€)",
+            height=500,
+            hovermode='x unified'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Estatísticas
+        st.subheader("📊 Estatísticas das Médias Móveis")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(f"MM {janela_1} (Última)", f"€{mm_1.iloc[-1]:.2f}")
+        with col2:
+            st.metric(f"MM {janela_2} (Última)", f"€{mm_2.iloc[-1]:.2f}")
+        with col3:
+            st.metric("Valor Atual", f"€{vendas_temporal.iloc[-1]:.2f}")
+        with col4:
+            if jogo_mm in OBJETIVOS_SEMANAIS:
+                obj = OBJETIVOS_SEMANAIS[jogo_mm]
+                perf = (vendas_temporal.iloc[-1] / obj * 100) if obj > 0 else 0
+                st.metric("Performance vs Objetivo", f"{perf:.1f}%")
+
+        # Tendência
+        st.info(f"""
+        💡 **Interpretação:**
+        - MM {janela_1} semanas captura tendências de curto prazo
+        - MM {janela_2} semanas mostra a tendência de longo prazo
+        - Quando MM curta cruza acima da longa: sinal de alta
+        - Quando MM curta cruza abaixo da longa: sinal de baixa
+        """)
+
+    # Exportação com insights
+    st.markdown("---")
+    st.subheader("📥 Exportar Análise Semanal")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # CSV básico
+        if df_ranking is not None:
+            csv_data = df_ranking.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📄 Baixar Ranking em CSV",
+                data=csv_data,
+                file_name=f"analise_semanal_{ultima_semana.strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+
+    with col2:
+        # Excel com insights e gráficos
+        if EXCEL_AVAILABLE:
+            try:
+                with st.spinner("Gerando Excel com insights e gráficos..."):
+                    excel_data = exportar_excel_com_insights_e_graficos(df, insights, ultima_semana)
+
+                if excel_data:
+                    st.download_button(
+                        label="📊 Baixar Relatório Completo em Excel",
+                        data=excel_data,
+                        file_name=f"analise_semanal_avancada_{ultima_semana.strftime('%Y%m%d')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Inclui insights automáticos, gráficos visuais e múltiplas análises"
+                    )
+                    st.success("✅ Excel com insights e gráficos disponível!")
+                else:
+                    st.error("Erro ao gerar Excel com insights")
+            except Exception as e:
+                st.error(f"Erro ao gerar Excel: {str(e)}")
+        else:
+            st.info("📊 Excel: Instale openpyxl para exportar em Excel")
+
+
 def main():
     """Função principal do dashboard."""
 
@@ -2155,7 +3065,7 @@ def main():
     # Menu de navegação
     pagina = st.sidebar.radio(
         "Navegação",
-        ["📈 Visão Geral", "🎯 Dashboard Executivo", "🎮 Análise por Jogo", "⚖️ Comparação", "📊 Comparações Avançadas", "💰 Remuneração"]
+        ["📈 Visão Geral", "🎯 Dashboard Executivo", "🔬 Análise Semanal", "🎮 Análise por Jogo", "⚖️ Comparação", "📊 Comparações Avançadas", "💰 Remuneração"]
     )
 
     # Renderizar página selecionada
@@ -2163,6 +3073,8 @@ def main():
         pagina_visao_geral(df)
     elif pagina == "🎯 Dashboard Executivo":
         pagina_dashboard_executivo(df)
+    elif pagina == "🔬 Análise Semanal":
+        pagina_analise_semanal_avancada(df)
     elif pagina == "🎮 Análise por Jogo":
         pagina_analise_jogos(df)
     elif pagina == "⚖️ Comparação":
@@ -2176,20 +3088,25 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ℹ️ Sobre")
     st.sidebar.info("""
-    Dashboard desenvolvido para análise completa de vendas dos jogos.
+    Dashboard v2.1 desenvolvido para análise completa de vendas dos jogos.
 
-    **Funcionalidades:**
-    - 🎯 Dashboard Executivo com KPIs
-    - 📊 Comparações MoM e YoY
+    **Funcionalidades v2.1:**
+    - 🔬 Análise Semanal Avançada (NOVO)
+    - 📊 Comparações WoW, MoM e YoY
+    - 🏆 Ranking dinâmico
+    - 🥧 Contribuição percentual
+    - 🎯 Velocímetro de performance
+    - 📈 Médias móveis múltiplas
+    - 💡 Insights automáticos
     - 🔮 Previsão de objetivos
-    - 📈 Análise de tendências
-    - 📥 Exportação Excel/CSV
+    - 📥 Exportação Excel/CSV com insights
     - 💰 Análise de remuneração
-    - 📊 Médias móveis
     - 🚦 Alertas de performance
 
     **Tecnologias:**
     Python, Streamlit, Plotly, Pandas, Scikit-learn, OpenPyXL
+
+    **Versão:** 2.1
     """)
 
 
