@@ -305,6 +305,53 @@ def pagina_visao_geral(df):
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
 
+    # Exportação de dados
+    st.markdown("---")
+    st.subheader("📥 Exportar Dados")
+
+    col1, col2 = st.columns(2)
+
+    # Preparar dados para exportação
+    top_jogos = df_filtrado.groupby('Jogo')['Valor'].sum().sort_values(ascending=False).reset_index()
+    top_jogos.columns = ['Jogo', 'Total Vendas (€)']
+
+    with col1:
+        # Exportar CSV
+        csv_data = top_jogos.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📄 Baixar Resumo em CSV",
+            data=csv_data,
+            file_name=f"visao_geral_{'-'.join(map(str, ano_selecionado))}.csv",
+            mime="text/csv"
+        )
+
+    with col2:
+        # Exportar Excel
+        if EXCEL_AVAILABLE:
+            try:
+                dataframes = {
+                    'Top Jogos': top_jogos,
+                    'Evolução Temporal': vendas_temp
+                }
+                info = {
+                    'Página': 'Visão Geral',
+                    'Anos Selecionados': ', '.join(map(str, ano_selecionado)),
+                    'Total de Vendas': f'€{total_vendas:,.2f}',
+                    'Média Semanal': f'€{media_semanal:,.2f}'
+                }
+                excel_data = exportar_excel_generico(dataframes, 'visao_geral', info)
+                if excel_data:
+                    st.download_button(
+                        label="📊 Baixar Relatório em Excel",
+                        data=excel_data,
+                        file_name=f"visao_geral_{'-'.join(map(str, ano_selecionado))}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            except Exception as e:
+                st.error(f"Erro ao gerar Excel: {str(e)}")
+        else:
+            st.info("📊 Excel: Instale openpyxl para exportar em Excel")
+
 
 def pagina_analise_jogos(df):
     """Análise detalhada por jogo."""
@@ -536,6 +583,66 @@ def pagina_analise_jogos(df):
         fig.update_layout(height=400)
         st.plotly_chart(fig, use_container_width=True)
 
+    # Exportação de dados
+    st.markdown("---")
+    st.subheader("📥 Exportar Dados do Jogo")
+
+    col1, col2 = st.columns(2)
+
+    # Preparar dados para exportação
+    df_export = df_jogo[['Data_Emissao', 'Jogo', 'Valor', 'Ano', 'Mes', 'Semana_Ano']].copy()
+    df_export['Data_Emissao'] = df_export['Data_Emissao'].dt.strftime('%d-%m-%Y')
+
+    with col1:
+        # Exportar CSV
+        csv_data = df_export.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📄 Baixar Dados em CSV",
+            data=csv_data,
+            file_name=f"analise_{jogo_selecionado.replace(' ', '_')}.csv",
+            mime="text/csv"
+        )
+
+    with col2:
+        # Exportar Excel
+        if EXCEL_AVAILABLE:
+            try:
+                # Preparar estatísticas
+                stats_df = pd.DataFrame({
+                    'Métrica': ['Total', 'Média', 'Mediana', 'Desvio Padrão', 'Máximo', 'Mínimo'],
+                    'Valor (€)': [
+                        df_jogo['Valor'].sum(),
+                        df_jogo['Valor'].mean(),
+                        df_jogo['Valor'].median(),
+                        df_jogo['Valor'].std(),
+                        df_jogo['Valor'].max(),
+                        df_jogo['Valor'].min()
+                    ]
+                })
+
+                dataframes = {
+                    'Dados': df_export,
+                    'Estatísticas': stats_df
+                }
+                info = {
+                    'Página': 'Análise por Jogo',
+                    'Jogo': jogo_selecionado,
+                    'Total Vendas': f'€{df_jogo["Valor"].sum():,.2f}',
+                    'Média': f'€{df_jogo["Valor"].mean():.2f}'
+                }
+                excel_data = exportar_excel_generico(dataframes, f'analise_{jogo_selecionado}', info)
+                if excel_data:
+                    st.download_button(
+                        label="📊 Baixar Relatório em Excel",
+                        data=excel_data,
+                        file_name=f"analise_{jogo_selecionado.replace(' ', '_')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            except Exception as e:
+                st.error(f"Erro ao gerar Excel: {str(e)}")
+        else:
+            st.info("📊 Excel: Instale openpyxl para exportar em Excel")
+
 
 def pagina_comparacao(df):
     """Comparação entre jogos e anos."""
@@ -649,6 +756,62 @@ def pagina_comparacao(df):
 
         st.info("💡 Valores próximos de 1 indicam forte correlação positiva, valores próximos de -1 indicam forte correlação negativa.")
 
+    # Exportação de dados
+    st.markdown("---")
+    st.subheader("📥 Exportar Dados de Comparação")
+
+    col1, col2 = st.columns(2)
+
+    # Preparar dados de comparação
+    comparacao_export = df_filtrado.groupby('Jogo')['Valor'].agg([
+        ('Total', 'sum'),
+        ('Média', 'mean'),
+        ('Mediana', 'median'),
+        ('Desvio_Padrão', 'std'),
+        ('Máximo', 'max'),
+        ('Mínimo', 'min')
+    ]).round(2).reset_index()
+
+    with col1:
+        # Exportar CSV
+        csv_data = comparacao_export.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📄 Baixar Comparação em CSV",
+            data=csv_data,
+            file_name=f"comparacao_jogos.csv",
+            mime="text/csv"
+        )
+
+    with col2:
+        # Exportar Excel
+        if EXCEL_AVAILABLE:
+            try:
+                # Evolução temporal para exportar
+                vendas_temp_export = df_filtrado.groupby(['Ano_Semana', 'Jogo'])['Valor'].sum().reset_index()
+
+                dataframes = {
+                    'Comparação Geral': comparacao_export,
+                    'Evolução Temporal': vendas_temp_export,
+                    'Correlações': correlacao.reset_index()
+                }
+                info = {
+                    'Página': 'Comparação',
+                    'Jogos Selecionados': ', '.join(jogos_selecionados),
+                    'Total Jogos': len(jogos_selecionados)
+                }
+                excel_data = exportar_excel_generico(dataframes, 'comparacao', info)
+                if excel_data:
+                    st.download_button(
+                        label="📊 Baixar Relatório em Excel",
+                        data=excel_data,
+                        file_name=f"comparacao_jogos.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            except Exception as e:
+                st.error(f"Erro ao gerar Excel: {str(e)}")
+        else:
+            st.info("📊 Excel: Instale openpyxl para exportar em Excel")
+
 
 def pagina_subtotais(df):
     """Análise dos subtotais."""
@@ -754,6 +917,72 @@ def pagina_subtotais(df):
         ]).round(2)
 
         st.dataframe(stats_subtotais, use_container_width=True)
+
+
+def exportar_excel_generico(dataframes_dict, nome_arquivo_base, info_adicional=None):
+    """
+    Exporta múltiplos DataFrames para Excel com formatação profissional.
+
+    Args:
+        dataframes_dict: Dict com {nome_sheet: dataframe}
+        nome_arquivo_base: Nome base do arquivo
+        info_adicional: Dict com informações adicionais (opcional)
+
+    Returns:
+        BytesIO com o arquivo Excel
+    """
+    if not EXCEL_AVAILABLE:
+        return None
+
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Escrever cada DataFrame em uma sheet
+        for sheet_name, df in dataframes_dict.items():
+            df.to_excel(writer, sheet_name=sheet_name[:31], index=False)  # Limite de 31 caracteres
+
+            # Obter worksheet
+            worksheet = writer.sheets[sheet_name[:31]]
+
+            # Estilos
+            header_fill = PatternFill(start_color="1F77B4", end_color="1F77B4", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            center_alignment = Alignment(horizontal="center", vertical="center")
+
+            # Formatação do cabeçalho
+            for cell in worksheet[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = center_alignment
+
+            # Ajustar largura das colunas
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(cell.value)
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+
+        # Adicionar sheet de informações se fornecida
+        if info_adicional:
+            info_sheet = writer.book.create_sheet('Informações', 0)
+            info_sheet['A1'] = 'Relatório de Vendas - Jogos Santa Casa'
+            info_sheet['A1'].font = Font(bold=True, size=14)
+
+            linha = 3
+            for chave, valor in info_adicional.items():
+                info_sheet[f'A{linha}'] = f'{chave}: {valor}'
+                linha += 1
+
+            info_sheet[f'A{linha+1}'] = f'Data de Geração: {datetime.now().strftime("%d/%m/%Y %H:%M")}'
+
+    output.seek(0)
+    return output
 
 
 def exportar_excel_estilizado(df_performance, periodo_str):
@@ -1322,6 +1551,49 @@ def pagina_comparacoes_avancadas(df):
             with col4:
                 st.metric("✅ Meses Positivos", f"{meses_positivos}")
 
+            # Exportação de dados MoM
+            st.markdown("---")
+            st.subheader("📥 Exportar Dados MoM")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Exportar CSV
+                csv_data = tabela_mom.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Baixar MoM em CSV",
+                    data=csv_data,
+                    file_name=f"comparacao_mom.csv",
+                    mime="text/csv",
+                    key="csv_mom"
+                )
+
+            with col2:
+                # Exportar Excel
+                if EXCEL_AVAILABLE:
+                    try:
+                        dataframes = {
+                            'Dados MoM': vendas_mom_filtrado[['Jogo', 'Mes_Ref_Str', 'Valor', 'Valor_Mes_Anterior', 'Crescimento_MoM_%']]
+                        }
+                        info = {
+                            'Página': 'Comparações Avançadas - MoM',
+                            'Jogos': ', '.join(jogos_selecionados),
+                            'Crescimento Médio': f'{crescimento_medio:.1f}%'
+                        }
+                        excel_data = exportar_excel_generico(dataframes, 'mom', info)
+                        if excel_data:
+                            st.download_button(
+                                label="📊 Baixar MoM em Excel",
+                                data=excel_data,
+                                file_name=f"comparacao_mom.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="excel_mom"
+                            )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar Excel: {str(e)}")
+                else:
+                    st.info("📊 Excel: Instale openpyxl para exportar em Excel")
+
     with tab2:
         st.subheader("Análise Year over Year (YoY)")
         st.caption("💡 Comparação do crescimento em relação ao ano anterior")
@@ -1405,6 +1677,49 @@ def pagina_comparacoes_avancadas(df):
                 st.metric("⬇️ Mínimo", f"{crescimento_min_yoy:.1f}%")
             with col4:
                 st.metric("✅ Anos Positivos", f"{anos_positivos}")
+
+            # Exportação de dados YoY
+            st.markdown("---")
+            st.subheader("📥 Exportar Dados YoY")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Exportar CSV
+                csv_data = tabela_yoy.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Baixar YoY em CSV",
+                    data=csv_data,
+                    file_name=f"comparacao_yoy.csv",
+                    mime="text/csv",
+                    key="csv_yoy"
+                )
+
+            with col2:
+                # Exportar Excel
+                if EXCEL_AVAILABLE:
+                    try:
+                        dataframes = {
+                            'Dados YoY': vendas_yoy_filtrado[['Jogo', 'Ano', 'Valor', 'Valor_Ano_Anterior', 'Crescimento_YoY_%']]
+                        }
+                        info = {
+                            'Página': 'Comparações Avançadas - YoY',
+                            'Jogos': ', '.join(jogos_selecionados_yoy),
+                            'Crescimento Médio': f'{crescimento_medio_yoy:.1f}%'
+                        }
+                        excel_data = exportar_excel_generico(dataframes, 'yoy', info)
+                        if excel_data:
+                            st.download_button(
+                                label="📊 Baixar YoY em Excel",
+                                data=excel_data,
+                                file_name=f"comparacao_yoy.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="excel_yoy"
+                            )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar Excel: {str(e)}")
+                else:
+                    st.info("📊 Excel: Instale openpyxl para exportar em Excel")
 
     with tab3:
         st.subheader("🔮 Previsão de Atingimento de Objetivos")
@@ -1742,6 +2057,69 @@ def pagina_remuneracao(df):
         tabela_perc = pd.DataFrame(list(REMUNERACAO_JOGOS.items()), columns=['Jogo', 'Percentagem (%)'])
         tabela_perc = tabela_perc.sort_values('Percentagem (%)', ascending=False)
         st.dataframe(tabela_perc, use_container_width=True, hide_index=True)
+
+    # Exportação de dados
+    st.markdown("---")
+    st.subheader("📥 Exportar Dados de Remuneração")
+
+    col1, col2 = st.columns(2)
+
+    # Preparar dados para exportação
+    rem_export = df_filtrado.groupby('Jogo').agg({
+        'Valor': 'sum',
+        'Remuneracao': 'sum',
+        'Percentagem': 'first'
+    }).reset_index()
+    rem_export.columns = ['Jogo', 'Total Vendas (€)', 'Total Remuneração (€)', 'Percentagem (%)']
+
+    with col1:
+        # Exportar CSV
+        csv_data = rem_export.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📄 Baixar Remuneração em CSV",
+            data=csv_data,
+            file_name=f"remuneracao_{'-'.join(map(str, ano_selecionado))}.csv",
+            mime="text/csv"
+        )
+
+    with col2:
+        # Exportar Excel
+        if EXCEL_AVAILABLE:
+            try:
+                # Remuneração anual
+                rem_anual_export = df_filtrado.groupby(['Ano', 'Jogo'])['Remuneracao'].sum().reset_index()
+                rem_anual_export.columns = ['Ano', 'Jogo', 'Remuneração (€)']
+
+                # Evolução temporal
+                rem_temp_export = df_filtrado.groupby(['Data_Emissao', 'Jogo'])['Remuneracao'].sum().reset_index()
+                rem_temp_export['Data_Emissao'] = rem_temp_export['Data_Emissao'].dt.strftime('%d-%m-%Y')
+                rem_temp_export.columns = ['Data', 'Jogo', 'Remuneração (€)']
+
+                dataframes = {
+                    'Resumo por Jogo': rem_export,
+                    'Remuneração Anual': rem_anual_export,
+                    'Evolução Temporal': rem_temp_export,
+                    'Percentagens': tabela_perc
+                }
+                info = {
+                    'Página': 'Remuneração',
+                    'Anos': ', '.join(map(str, ano_selecionado)),
+                    'Total Vendas': f'€{total_vendas:,.2f}',
+                    'Total Remuneração': f'€{total_remuneracao:,.2f}',
+                    'Percentagem Média': f'{percentagem_media:.2f}%'
+                }
+                excel_data = exportar_excel_generico(dataframes, 'remuneracao', info)
+                if excel_data:
+                    st.download_button(
+                        label="📊 Baixar Relatório em Excel",
+                        data=excel_data,
+                        file_name=f"remuneracao_{'-'.join(map(str, ano_selecionado))}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+            except Exception as e:
+                st.error(f"Erro ao gerar Excel: {str(e)}")
+        else:
+            st.info("📊 Excel: Instale openpyxl para exportar em Excel")
 
 
 def main():
