@@ -88,11 +88,18 @@ st.markdown("""
         border-radius: 10px 10px 0 0;
         padding: 10px 20px;
         font-weight: 600;
+        color: #333 !important;
+        font-size: 16px !important;
     }
 
     .stTabs [aria-selected="true"] {
         background-color: #1f77b4;
-        color: white;
+        color: white !important;
+    }
+
+    /* Garantir que o texto das tabs é visível */
+    .stTabs button div {
+        color: inherit !important;
     }
 
     /* Sidebar */
