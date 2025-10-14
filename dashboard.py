@@ -225,9 +225,9 @@ def pagina_visao_geral(df):
     num_jogos = df_filtrado['Jogo'].nunique()
 
     with col1:
-        st.metric("💰 Total de Vendas", f"€{total_vendas:,.2f}")
+        st.metric("💰 Total de Vendas", f"€{total_vendas:,.0f}")
     with col2:
-        st.metric("📅 Média Semanal", f"€{media_semanal:,.2f}")
+        st.metric("📅 Média Semanal", f"€{media_semanal:,.0f}")
     with col3:
         st.metric("📋 Registos", f"{num_registos:,}")
     with col4:
@@ -336,8 +336,8 @@ def pagina_visao_geral(df):
                 info = {
                     'Página': 'Visão Geral',
                     'Anos Selecionados': ', '.join(map(str, ano_selecionado)),
-                    'Total de Vendas': f'€{total_vendas:,.2f}',
-                    'Média Semanal': f'€{media_semanal:,.2f}'
+                    'Total de Vendas': f'€{total_vendas:,.0f}',
+                    'Média Semanal': f'€{media_semanal:,.0f}'
                 }
                 excel_data = exportar_excel_generico(dataframes, 'visao_geral', info)
                 if excel_data:
@@ -368,13 +368,13 @@ def pagina_analise_jogos(df):
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("💰 Total", f"€{df_jogo['Valor'].sum():,.2f}")
+        st.metric("💰 Total", f"€{df_jogo['Valor'].sum():,.0f}")
     with col2:
-        st.metric("📊 Média", f"€{df_jogo['Valor'].mean():,.2f}")
+        st.metric("📊 Média", f"€{df_jogo['Valor'].mean():,.0f}")
     with col3:
-        st.metric("📈 Máximo", f"€{df_jogo['Valor'].max():,.2f}")
+        st.metric("📈 Máximo", f"€{df_jogo['Valor'].max():,.0f}")
     with col4:
-        st.metric("📉 Mínimo", f"€{df_jogo['Valor'].min():,.2f}")
+        st.metric("📉 Mínimo", f"€{df_jogo['Valor'].min():,.0f}")
 
     st.markdown("---")
 
@@ -517,7 +517,7 @@ def pagina_analise_jogos(df):
             st.subheader("Valores Previstos")
             df_previsao = pd.DataFrame({
                 'Data': ultimas_datas.strftime('%d-%m-%Y'),
-                'Valor Previsto (€)': [f"{v:.2f}" for v in previsao]
+                'Valor Previsto (€)': [f"{v:.0f}" for v in previsao]
             })
             st.dataframe(df_previsao, use_container_width=True)
         else:
@@ -533,9 +533,9 @@ def pagina_analise_jogos(df):
             stats_tendencia = pd.DataFrame({
                 'Métrica': ['Média', 'Mediana', 'Moda'],
                 'Valor (€)': [
-                    f"{df_jogo['Valor'].mean():.2f}",
-                    f"{df_jogo['Valor'].median():.2f}",
-                    f"{df_jogo['Valor'].mode()[0]:.2f}" if len(df_jogo['Valor'].mode()) > 0 else "N/A"
+                    f"{df_jogo['Valor'].mean():.0f}",
+                    f"{df_jogo['Valor'].median():.0f}",
+                    f"{df_jogo['Valor'].mode()[0]:.0f}" if len(df_jogo['Valor'].mode()) > 0 else "N/A"
                 ]
             })
             st.dataframe(stats_tendencia, use_container_width=True, hide_index=True)
@@ -544,9 +544,9 @@ def pagina_analise_jogos(df):
             stats_dispersao = pd.DataFrame({
                 'Métrica': ['Desvio Padrão', 'Variância', 'Coef. Variação'],
                 'Valor': [
-                    f"€{df_jogo['Valor'].std():.2f}",
-                    f"€{df_jogo['Valor'].var():.2f}",
-                    f"{(df_jogo['Valor'].std() / df_jogo['Valor'].mean() * 100):.2f}%"
+                    f"€{df_jogo['Valor'].std():.0f}",
+                    f"€{df_jogo['Valor'].var():.0f}",
+                    f"{(df_jogo['Valor'].std() / df_jogo['Valor'].mean() * 100):.0f}%"
                 ]
             })
             st.dataframe(stats_dispersao, use_container_width=True, hide_index=True)
@@ -556,7 +556,7 @@ def pagina_analise_jogos(df):
             percentis = [10, 25, 50, 75, 90, 95, 99]
             stats_percentis = pd.DataFrame({
                 'Percentil': [f"P{p}" for p in percentis],
-                'Valor (€)': [f"{df_jogo['Valor'].quantile(p/100):.2f}" for p in percentis]
+                'Valor (€)': [f"{df_jogo['Valor'].quantile(p/100):.0f}" for p in percentis]
             })
             st.dataframe(stats_percentis, use_container_width=True, hide_index=True)
 
@@ -564,9 +564,9 @@ def pagina_analise_jogos(df):
             stats_extremos = pd.DataFrame({
                 'Métrica': ['Mínimo', 'Máximo', 'Amplitude'],
                 'Valor (€)': [
-                    f"{df_jogo['Valor'].min():.2f}",
-                    f"{df_jogo['Valor'].max():.2f}",
-                    f"{df_jogo['Valor'].max() - df_jogo['Valor'].min():.2f}"
+                    f"{df_jogo['Valor'].min():.0f}",
+                    f"{df_jogo['Valor'].max():.0f}",
+                    f"{df_jogo['Valor'].max() - df_jogo['Valor'].min():.0f}"
                 ]
             })
             st.dataframe(stats_extremos, use_container_width=True, hide_index=True)
@@ -627,8 +627,8 @@ def pagina_analise_jogos(df):
                 info = {
                     'Página': 'Análise por Jogo',
                     'Jogo': jogo_selecionado,
-                    'Total Vendas': f'€{df_jogo["Valor"].sum():,.2f}',
-                    'Média': f'€{df_jogo["Valor"].mean():.2f}'
+                    'Total Vendas': f'€{df_jogo["Valor"].sum():,.0f}',
+                    'Média': f'€{df_jogo["Valor"].mean():.0f}'
                 }
                 excel_data = exportar_excel_generico(dataframes, f'analise_{jogo_selecionado}', info)
                 if excel_data:
@@ -833,8 +833,8 @@ def pagina_subtotais(df):
             with [col1, col2, col3][idx]:
                 st.metric(
                     subtotal,
-                    f"€{df_sub['Valor'].sum():,.2f}",
-                    f"Média: €{df_sub['Valor'].mean():.2f}"
+                    f"€{df_sub['Valor'].sum():,.0f}",
+                    f"Média: €{df_sub['Valor'].mean():.0f}"
                 )
 
     st.markdown("---")
@@ -1490,7 +1490,7 @@ def gerar_insights_automaticos(df, janela_medias=[4, 8]):
         crescimento = row['Crescimento_WoW_%']
         if abs(crescimento) >= 5:  # Só reportar mudanças significativas
             direcao = "cresceu" if crescimento > 0 else "caiu"
-            insights.append(f"📊 {row['Jogo']}: {direcao} {abs(crescimento):.1f}% em relação à semana anterior (€{row['Diferenca_Absoluta']:+,.2f})")
+            insights.append(f"📊 {row['Jogo']}: {direcao} {abs(crescimento):.1f}% em relação à semana anterior (€{row['Diferenca_Absoluta']:+,.0f})")
 
     # Análise de médias móveis
     for janela in janela_medias:
@@ -1524,7 +1524,7 @@ def gerar_insights_automaticos(df, janela_medias=[4, 8]):
     if len(vendas_ultima) > 0:
         top_jogo = vendas_ultima.index[0]
         top_valor = vendas_ultima.values[0]
-        insights.insert(0, f"🏆 Destaque da semana: {top_jogo} com €{top_valor:,.2f}")
+        insights.insert(0, f"🏆 Destaque da semana: {top_jogo} com €{top_valor:,.0f}")
 
     return insights if insights else ["Sem insights significativos para esta semana"]
 
@@ -1611,22 +1611,22 @@ def pagina_dashboard_executivo(df):
     with col1:
         st.metric(
             "💰 Total de Vendas",
-            f"€{total_vendas:,.2f}",
+            f"€{total_vendas:,.0f}",
             f"{percentual_objetivo:.1f}% do objetivo"
         )
 
     with col2:
         st.metric(
             "🎯 Objetivo do Período",
-            f"€{total_objetivo_periodo:,.2f}",
+            f"€{total_objetivo_periodo:,.0f}",
             f"{num_semanas} semana(s)"
         )
 
     with col3:
         st.metric(
             "💵 Remuneração Total",
-            f"€{total_remuneracao:,.2f}",
-            f"Média: €{total_remuneracao/num_semanas:.2f}/semana"
+            f"€{total_remuneracao:,.0f}",
+            f"Média: €{total_remuneracao/num_semanas:.0f}/semana"
         )
 
     with col4:
@@ -1730,9 +1730,9 @@ def pagina_dashboard_executivo(df):
     st.subheader("📋 Tabela Detalhada de Performance")
 
     tabela_detalhada = vendas_por_jogo[['Status', 'Jogo', 'Media_Semanal', 'Objetivo', 'Diferenca', 'Performance_%']].copy()
-    tabela_detalhada['Media_Semanal'] = tabela_detalhada['Media_Semanal'].apply(lambda x: f"€{x:.2f}")
-    tabela_detalhada['Objetivo'] = tabela_detalhada['Objetivo'].apply(lambda x: f"€{x:.2f}")
-    tabela_detalhada['Diferenca'] = tabela_detalhada['Diferenca'].apply(lambda x: f"€{x:+.2f}")
+    tabela_detalhada['Media_Semanal'] = tabela_detalhada['Media_Semanal'].apply(lambda x: f"€{x:.0f}")
+    tabela_detalhada['Objetivo'] = tabela_detalhada['Objetivo'].apply(lambda x: f"€{x:.0f}")
+    tabela_detalhada['Diferenca'] = tabela_detalhada['Diferenca'].apply(lambda x: f"€{x:+.0f}")
     tabela_detalhada['Performance_%'] = tabela_detalhada['Performance_%'].apply(lambda x: f"{x:.1f}%")
     tabela_detalhada.columns = ['📊', 'Jogo', 'Média Semanal', 'Objetivo', 'Diferença', 'Performance']
 
@@ -1817,7 +1817,7 @@ def pagina_dashboard_executivo(df):
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("📊 Média do Período", f"€{vendas_temporal.mean():.2f}")
+        st.metric("📊 Média do Período", f"€{vendas_temporal.mean():.0f}")
 
     with col2:
         if jogo_analise in OBJETIVOS_SEMANAIS:
@@ -1835,7 +1835,7 @@ def pagina_dashboard_executivo(df):
             segunda_metade = vendas_temporal.iloc[meio:].mean()
             crescimento = ((segunda_metade - primeira_metade) / primeira_metade * 100) if primeira_metade > 0 else 0
             st.metric("📈 Tendência", f"{crescimento:+.1f}%",
-                     delta=f"€{segunda_metade - primeira_metade:+.2f}")
+                     delta=f"€{segunda_metade - primeira_metade:+.0f}")
         else:
             st.metric("📈 Tendência", "N/A")
 
@@ -1951,9 +1951,9 @@ def pagina_comparacoes_avancadas(df):
             # Tabela detalhada
             st.subheader("📋 Tabela Detalhada MoM")
             tabela_mom = vendas_mom_filtrado[['Jogo', 'Mes_Ref_Str', 'Valor', 'Valor_Mes_Anterior', 'Crescimento_MoM_%']].copy()
-            tabela_mom['Valor'] = tabela_mom['Valor'].apply(lambda x: f"€{x:,.2f}")
+            tabela_mom['Valor'] = tabela_mom['Valor'].apply(lambda x: f"€{x:,.0f}")
             tabela_mom['Valor_Mes_Anterior'] = tabela_mom['Valor_Mes_Anterior'].apply(
-                lambda x: f"€{x:,.2f}" if pd.notna(x) else "N/A"
+                lambda x: f"€{x:,.0f}" if pd.notna(x) else "N/A"
             )
             tabela_mom['Crescimento_MoM_%'] = tabela_mom['Crescimento_MoM_%'].apply(
                 lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A"
@@ -2078,9 +2078,9 @@ def pagina_comparacoes_avancadas(df):
             # Tabela detalhada
             st.subheader("📋 Tabela Detalhada YoY")
             tabela_yoy = vendas_yoy_filtrado[['Jogo', 'Ano', 'Valor', 'Valor_Ano_Anterior', 'Crescimento_YoY_%']].copy()
-            tabela_yoy['Valor'] = tabela_yoy['Valor'].apply(lambda x: f"€{x:,.2f}")
+            tabela_yoy['Valor'] = tabela_yoy['Valor'].apply(lambda x: f"€{x:,.0f}")
             tabela_yoy['Valor_Ano_Anterior'] = tabela_yoy['Valor_Ano_Anterior'].apply(
-                lambda x: f"€{x:,.2f}" if pd.notna(x) else "N/A"
+                lambda x: f"€{x:,.0f}" if pd.notna(x) else "N/A"
             )
             tabela_yoy['Crescimento_YoY_%'] = tabela_yoy['Crescimento_YoY_%'].apply(
                 lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A"
@@ -2175,14 +2175,14 @@ def pagina_comparacoes_avancadas(df):
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                st.metric("📊 Média Atual", f"€{previsao['media_atual']:.2f}")
+                st.metric("📊 Média Atual", f"€{previsao['media_atual']:.0f}")
 
             with col2:
                 delta_color = "normal" if previsao['tendencia_%'] >= 0 else "inverse"
                 st.metric("📈 Tendência", f"{previsao['tendencia_%']:+.1f}%", delta_color=delta_color)
 
             with col3:
-                st.metric("🎯 Objetivo", f"€{previsao['objetivo']:.2f}")
+                st.metric("🎯 Objetivo", f"€{previsao['objetivo']:.0f}")
 
             with col4:
                 prob = previsao['probabilidade_%']
@@ -2320,13 +2320,13 @@ def pagina_remuneracao(df):
     media_semanal_rem = df_filtrado.groupby('Data_Emissao')['Remuneracao'].sum().mean()
 
     with col1:
-        st.metric("💰 Remuneração Total", f"€{total_remuneracao:,.2f}")
+        st.metric("💰 Remuneração Total", f"€{total_remuneracao:,.0f}")
     with col2:
-        st.metric("📊 Percentagem Média", f"{percentagem_media:.2f}%")
+        st.metric("📊 Percentagem Média", f"{percentagem_media:.0f}%")
     with col3:
-        st.metric("📅 Média Semanal", f"€{media_semanal_rem:,.2f}")
+        st.metric("📅 Média Semanal", f"€{media_semanal_rem:,.0f}")
     with col4:
-        st.metric("📈 Total Vendas", f"€{total_vendas:,.2f}")
+        st.metric("📈 Total Vendas", f"€{total_vendas:,.0f}")
 
     st.markdown("---")
 
@@ -2366,8 +2366,8 @@ def pagina_remuneracao(df):
         with col2:
             # Tabela detalhada
             rem_tabela = rem_por_jogo.copy()
-            rem_tabela['Valor'] = rem_tabela['Valor'].apply(lambda x: f"€{x:,.2f}")
-            rem_tabela['Remuneracao'] = rem_tabela['Remuneracao'].apply(lambda x: f"€{x:,.2f}")
+            rem_tabela['Valor'] = rem_tabela['Valor'].apply(lambda x: f"€{x:,.0f}")
+            rem_tabela['Remuneracao'] = rem_tabela['Remuneracao'].apply(lambda x: f"€{x:,.0f}")
             rem_tabela['Percentagem'] = rem_tabela['Percentagem'].apply(lambda x: f"{x}%")
             rem_tabela = rem_tabela.rename(columns={
                 'Valor': 'Vendas',
@@ -2532,9 +2532,9 @@ def pagina_remuneracao(df):
                 info = {
                     'Página': 'Remuneração',
                     'Anos': ', '.join(map(str, ano_selecionado)),
-                    'Total Vendas': f'€{total_vendas:,.2f}',
-                    'Total Remuneração': f'€{total_remuneracao:,.2f}',
-                    'Percentagem Média': f'{percentagem_media:.2f}%'
+                    'Total Vendas': f'€{total_vendas:,.0f}',
+                    'Total Remuneração': f'€{total_remuneracao:,.0f}',
+                    'Percentagem Média': f'{percentagem_media:.0f}%'
                 }
                 excel_data = exportar_excel_generico(dataframes, 'remuneracao', info)
                 if excel_data:
@@ -2649,10 +2649,10 @@ def pagina_analise_semanal_avancada(df):
             if not ultima_semana_data.empty:
                 tabela_wow = ultima_semana_data[['Jogo', 'Valor', 'Valor_Semana_Anterior', 'Crescimento_WoW_%', 'Diferenca_Absoluta']].copy()
                 tabela_wow = tabela_wow.sort_values('Crescimento_WoW_%', ascending=False)
-                tabela_wow['Valor'] = tabela_wow['Valor'].apply(lambda x: f"€{x:,.2f}")
-                tabela_wow['Valor_Semana_Anterior'] = tabela_wow['Valor_Semana_Anterior'].apply(lambda x: f"€{x:,.2f}")
+                tabela_wow['Valor'] = tabela_wow['Valor'].apply(lambda x: f"€{x:,.0f}")
+                tabela_wow['Valor_Semana_Anterior'] = tabela_wow['Valor_Semana_Anterior'].apply(lambda x: f"€{x:,.0f}")
                 tabela_wow['Crescimento_WoW_%'] = tabela_wow['Crescimento_WoW_%'].apply(lambda x: f"{x:+.1f}%")
-                tabela_wow['Diferenca_Absoluta'] = tabela_wow['Diferenca_Absoluta'].apply(lambda x: f"€{x:+,.2f}")
+                tabela_wow['Diferenca_Absoluta'] = tabela_wow['Diferenca_Absoluta'].apply(lambda x: f"€{x:+,.0f}")
                 tabela_wow.columns = ['Jogo', 'Vendas Atual', 'Vendas Anterior', 'Crescimento %', 'Diferença €']
 
                 st.dataframe(tabela_wow, use_container_width=True, hide_index=True)
@@ -2689,7 +2689,7 @@ def pagina_analise_semanal_avancada(df):
             with col1:
                 # Tabela de ranking
                 tabela_rank = df_ranking[['Posicao_Atual', 'Jogo', 'Vendas_Atual', 'Posicao_Anterior', 'Indicador']].copy()
-                tabela_rank['Vendas_Atual'] = tabela_rank['Vendas_Atual'].apply(lambda x: f"€{x:,.2f}")
+                tabela_rank['Vendas_Atual'] = tabela_rank['Vendas_Atual'].apply(lambda x: f"€{x:,.0f}")
                 tabela_rank['Posicao_Anterior'] = tabela_rank['Posicao_Anterior'].apply(lambda x: f"#{int(x)}")
                 tabela_rank.columns = ['#', 'Jogo', 'Vendas', 'Posição Anterior', 'Mudança']
 
@@ -2765,15 +2765,15 @@ def pagina_analise_semanal_avancada(df):
         with col2:
             # Tabela detalhada
             tabela_contrib = df_contrib.copy()
-            tabela_contrib['Valor'] = tabela_contrib['Valor'].apply(lambda x: f"€{x:,.2f}")
-            tabela_contrib['Percentagem'] = tabela_contrib['Percentagem'].apply(lambda x: f"{x:.2f}%")
+            tabela_contrib['Valor'] = tabela_contrib['Valor'].apply(lambda x: f"€{x:,.0f}")
+            tabela_contrib['Percentagem'] = tabela_contrib['Percentagem'].apply(lambda x: f"{x:.0f}%")
 
             st.markdown("### 📋 Detalhes")
             st.dataframe(tabela_contrib, use_container_width=True, hide_index=True, height=500)
 
             # Total
             total = df_contrib['Valor'].apply(lambda x: float(x.replace('€', '').replace(',', '')) if isinstance(x, str) else x).sum()
-            st.metric("💰 Total da Semana", f"€{df[df['Data_Emissao'] == data_selecionada]['Valor'].sum():,.2f}")
+            st.metric("💰 Total da Semana", f"€{df[df['Data_Emissao'] == data_selecionada]['Valor'].sum():,.0f}")
 
         # Comparação temporal de contribuições
         st.subheader("📈 Evolução das Contribuições (%)")
@@ -2879,10 +2879,10 @@ def pagina_analise_semanal_avancada(df):
         # Detalhes numéricos
         st.subheader("📋 Detalhes de Performance")
         tabela_vel_det = df_vel.copy()
-        tabela_vel_det['Valor Atual'] = tabela_vel_det['Valor Atual'].apply(lambda x: f"€{x:,.2f}")
-        tabela_vel_det['Média Histórica'] = tabela_vel_det['Média Histórica'].apply(lambda x: f"€{x:,.2f}")
+        tabela_vel_det['Valor Atual'] = tabela_vel_det['Valor Atual'].apply(lambda x: f"€{x:,.0f}")
+        tabela_vel_det['Média Histórica'] = tabela_vel_det['Média Histórica'].apply(lambda x: f"€{x:,.0f}")
         tabela_vel_det['Performance (%)'] = tabela_vel_det['Performance (%)'].apply(lambda x: f"{x:.1f}%")
-        tabela_vel_det['Diferença (€)'] = tabela_vel_det['Diferença (€)'].apply(lambda x: f"€{x:+,.2f}")
+        tabela_vel_det['Diferença (€)'] = tabela_vel_det['Diferença (€)'].apply(lambda x: f"€{x:+,.0f}")
 
         st.dataframe(tabela_vel_det, use_container_width=True, hide_index=True)
 
@@ -2971,11 +2971,11 @@ def pagina_analise_semanal_avancada(df):
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.metric(f"MM {janela_1} (Última)", f"€{mm_1.iloc[-1]:.2f}")
+            st.metric(f"MM {janela_1} (Última)", f"€{mm_1.iloc[-1]:.0f}")
         with col2:
-            st.metric(f"MM {janela_2} (Última)", f"€{mm_2.iloc[-1]:.2f}")
+            st.metric(f"MM {janela_2} (Última)", f"€{mm_2.iloc[-1]:.0f}")
         with col3:
-            st.metric("Valor Atual", f"€{vendas_temporal.iloc[-1]:.2f}")
+            st.metric("Valor Atual", f"€{vendas_temporal.iloc[-1]:.0f}")
         with col4:
             if jogo_mm in OBJETIVOS_SEMANAIS:
                 obj = OBJETIVOS_SEMANAIS[jogo_mm]

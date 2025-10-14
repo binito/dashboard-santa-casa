@@ -170,8 +170,8 @@ def carregar_dados():
 
 
 def formatar_moeda(valor):
-    """Formata valor em euros"""
-    return f"€ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    """Formata valor em euros sem casas decimais"""
+    return f"€ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def formatar_percentagem(valor):
