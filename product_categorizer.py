@@ -24,12 +24,7 @@ class ProductCategorizer:
         },
         'CERVEJAS': {
             'subcategorias': {
-                'Cerveja Mini': ['cerveja mini', 'imperial'],
-                'Cerveja Média': ['cerveja media', 'cerveja média'],
-                'Cerveja Especial': ['heineken', 'super bock', 'sagres especial'],
-                'Cerveja sem Álcool': ['cerveja s/alcool', 'sem alcool'],
-                'Caneca': ['caneca'],
-                'Panachés': ['panaché', 'panache']
+                'Cerveja': ['cerveja', 'imperial', 'heineken', 'super bock', 'sagres', 'caneca', 'panaché', 'panache', 'mini', 'media', 'média', 'especial', 'cidra', 'tango']
             },
             'cor': '#FFD700',
             'icone': '🍺'
@@ -148,6 +143,11 @@ class ProductCategorizer:
         if familia:
             for categoria, info in self.CATEGORIAS.items():
                 if any(key.lower() in familia_lower for key in [categoria.lower()]):
+                    # Para cervejas, usar o nome do produto como subcategoria
+                    if categoria == 'CERVEJAS':
+                        resultado = (categoria, str(nome_produto).strip())
+                        self._cache[cache_key] = resultado
+                        return resultado
                     # Encontrar subcategoria dentro da categoria
                     for subcat, palavras in info['subcategorias'].items():
                         if any(palavra in nome_lower for palavra in palavras):
@@ -163,6 +163,11 @@ class ProductCategorizer:
         for categoria, info in self.CATEGORIAS.items():
             for subcat, palavras in info['subcategorias'].items():
                 if any(palavra in nome_lower for palavra in palavras):
+                    # Para cervejas, usar o nome do produto como subcategoria
+                    if categoria == 'CERVEJAS':
+                        resultado = (categoria, str(nome_produto).strip())
+                        self._cache[cache_key] = resultado
+                        return resultado
                     resultado = (categoria, subcat)
                     self._cache[cache_key] = resultado
                     return resultado
