@@ -548,13 +548,11 @@ def main():
             col = cols[idx % 4]
             with col:
                 percentual = (row['Valor'] / total_vendas) * 100
-                st.markdown(f"""
-                    <div class="metric-card">
-                        <h3>{row['Icone_Categoria']} {categoria}</h3>
-                        <h2>{formatar_moeda(row['Valor'])}</h2>
-                        <p style="color: #666;">{formatar_percentagem(percentual)} do total</p>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.metric(
+                    label=f"{row['Icone_Categoria']} {categoria}",
+                    value=formatar_moeda(row['Valor']),
+                    delta=f"{formatar_percentagem(percentual)} do total"
+                )
 
         st.markdown("---")
 
