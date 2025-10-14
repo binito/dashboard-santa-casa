@@ -156,6 +156,9 @@ def carregar_dados():
     df = pd.DataFrame(records)
     df['Data_Emissao'] = pd.to_datetime(df['Data_Emissao'], format='%d-%m-%Y')
 
+    # Adicionar +2 dias a todas as datas
+    df['Data_Emissao'] = df['Data_Emissao'] + timedelta(days=2)
+
     # Renomear jogos de acordo com o mapeamento
     df['Jogo'] = df['Jogo'].map(lambda x: renomear_jogo(x))
 
