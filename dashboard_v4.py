@@ -12,6 +12,10 @@ import numpy as np
 from datetime import datetime, timedelta
 from data_loader_v4 import DataLoaderV4
 from product_categorizer import ProductCategorizer
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
+from pathlib import Path
 
 # Configuração da página
 st.set_page_config(
@@ -1652,4 +1656,42 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # Configuração de autenticação
+    config_file = Path(__file__).parent / 'config.yaml'
+
+    # Verificar se o arquivo de configuração existe
+    if not config_file.exists():
+        st.error(f'Arquivo de configuração não encontrado: {config_file}')
+        st.stop()
+
+    with open(config_file) as file:
+        config = yaml.load(file, Loader=SafeLoader)
+
+    # Criar objeto de autenticação
+    authenticator = stauth.Authenticate(
+        config['credentials'],
+        config['cookie']['name'],
+        config['cookie']['key'],
+        config['cookie']['expiry_days']
+    )
+
+    # Renderizar formulário de login
+    try:
+        authenticator.login()
+    except Exception as e:
+        st.error(f'Erro ao processar login: {e}')
+        st.stop()
+
+    # Verificar status de autenticação
+    if st.session_state.get("authentication_status"):
+        # Usuário autenticado - adicionar logout na sidebar
+        authenticator.logout()
+        st.sidebar.write(f'Bem-vindo, **{st.session_state["name"]}**!')
+
+        # Executar aplicação principal
+        main()
+
+    elif st.session_state.get("authentication_status") is False:
+        st.error('Utilizador ou password incorretos')
+    elif st.session_state.get("authentication_status") is None:
+        st.warning('Por favor, introduza as suas credenciais')
