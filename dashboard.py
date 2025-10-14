@@ -1283,8 +1283,14 @@ def calcular_comparacao_wow(df):
 
     # Calcular crescimento WoW
     vendas_semana['Valor_Semana_Anterior'] = vendas_semana.groupby('Jogo')['Valor'].shift(1)
-    vendas_semana['Crescimento_WoW_%'] = ((vendas_semana['Valor'] - vendas_semana['Valor_Semana_Anterior']) /
-                                           vendas_semana['Valor_Semana_Anterior'] * 100)
+
+    # Proteção contra divisão por zero: só calcular quando Valor_Semana_Anterior > 0
+    vendas_semana['Crescimento_WoW_%'] = vendas_semana.apply(
+        lambda row: ((row['Valor'] - row['Valor_Semana_Anterior']) / row['Valor_Semana_Anterior'] * 100)
+        if pd.notna(row['Valor_Semana_Anterior']) and row['Valor_Semana_Anterior'] != 0
+        else np.nan,
+        axis=1
+    )
     vendas_semana['Diferenca_Absoluta'] = vendas_semana['Valor'] - vendas_semana['Valor_Semana_Anterior']
 
     return vendas_semana
@@ -1301,8 +1307,14 @@ def calcular_comparacao_mom(df):
     # Calcular crescimento MoM
     vendas_mes = vendas_mes.sort_values(['Jogo', 'Mes_Ref'])
     vendas_mes['Valor_Mes_Anterior'] = vendas_mes.groupby('Jogo')['Valor'].shift(1)
-    vendas_mes['Crescimento_MoM_%'] = ((vendas_mes['Valor'] - vendas_mes['Valor_Mes_Anterior']) /
-                                        vendas_mes['Valor_Mes_Anterior'] * 100)
+
+    # Proteção contra divisão por zero
+    vendas_mes['Crescimento_MoM_%'] = vendas_mes.apply(
+        lambda row: ((row['Valor'] - row['Valor_Mes_Anterior']) / row['Valor_Mes_Anterior'] * 100)
+        if pd.notna(row['Valor_Mes_Anterior']) and row['Valor_Mes_Anterior'] != 0
+        else np.nan,
+        axis=1
+    )
 
     return vendas_mes
 
@@ -1316,8 +1328,14 @@ def calcular_comparacao_yoy(df):
 
     # Calcular crescimento YoY
     vendas_ano['Valor_Ano_Anterior'] = vendas_ano.groupby('Jogo')['Valor'].shift(1)
-    vendas_ano['Crescimento_YoY_%'] = ((vendas_ano['Valor'] - vendas_ano['Valor_Ano_Anterior']) /
-                                        vendas_ano['Valor_Ano_Anterior'] * 100)
+
+    # Proteção contra divisão por zero
+    vendas_ano['Crescimento_YoY_%'] = vendas_ano.apply(
+        lambda row: ((row['Valor'] - row['Valor_Ano_Anterior']) / row['Valor_Ano_Anterior'] * 100)
+        if pd.notna(row['Valor_Ano_Anterior']) and row['Valor_Ano_Anterior'] != 0
+        else np.nan,
+        axis=1
+    )
 
     return vendas_ano
 
