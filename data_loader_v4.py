@@ -179,6 +179,9 @@ class DataLoaderV4:
 
                 df_filtrado['Fonte'] = 'POS-Outros'
 
+                # Renomear todos os produtos para "Outros"
+                df_filtrado['Produto'] = 'Outros'
+
                 df_filtrado = df_filtrado[['Data', 'Valor', 'Qtd', 'Fonte', 'Produto']].copy()
                 dados_outros.append(df_filtrado)
 

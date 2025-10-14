@@ -19,8 +19,8 @@ from pathlib import Path
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard Profissional v4",
-    page_icon="📊",
+    page_title="Dashboard de Vendas - Café Martins",
+    page_icon="☕",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -351,7 +351,7 @@ def criar_grafico_waterfall(valores, labels, titulo):
 # Interface principal
 def main():
     # Cabeçalho
-    st.markdown('<h1 class="main-title">📊 Dashboard Profissional v4</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">☕ Dashboard de Vendas - Café Martins</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Análise Completa de Vendas com Categorização Inteligente</p>', unsafe_allow_html=True)
 
     # Carregar dados
@@ -1649,7 +1649,7 @@ def main():
 
     st.markdown("""
         <div style="text-align: center; color: #666; padding: 20px;">
-            <p><strong>Dashboard Profissional v4</strong> | Desenvolvido com Streamlit & Plotly</p>
+            <p><strong>Dashboard de Vendas - Café Martins</strong> | Desenvolvido com Streamlit & Plotly</p>
             <p>Última atualização: {}</p>
         </div>
     """.format(datetime.now().strftime('%d/%m/%Y %H:%M:%S')), unsafe_allow_html=True)
