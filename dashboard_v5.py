@@ -1827,7 +1827,7 @@ def main():
             with col2:
                 # Scatter: Vendas vs Margem
                 fig_scatter_rent = px.scatter(
-                    x=analise_cat['Total'],
+                    x=analise_cat['Valor'],
                     y=analise_cat['Margem_Bruta_Pct'],
                     size=analise_cat['Lucro_Bruto'],
                     color=analise_cat.index,
@@ -1846,7 +1846,7 @@ def main():
 
         if not analise_cat.empty:
             analise_display = analise_cat.copy()
-            analise_display['Total'] = analise_display['Total'].apply(formatar_moeda)
+            analise_display['Valor'] = analise_display['Valor'].apply(formatar_moeda)
             analise_display['Custo_Total'] = analise_display['Custo_Total'].apply(formatar_moeda)
             analise_display['Lucro_Bruto'] = analise_display['Lucro_Bruto'].apply(formatar_moeda)
             analise_display['Margem_Bruta_Pct'] = analise_display['Margem_Bruta_Pct'].apply(lambda x: f"{x:.1f}%")
