@@ -1,0 +1,25 @@
+Produto,Categoria,Tipo_Compra,Unidade_Compra,Preco_Compra,Rendimento,Custo_Unitario,Preco_Venda,Margem_Bruta
+Café,CAFETARIA,Kg,Unidade,40.40,131.58,0.307,0.70,56.14%
+Galão,CAFETARIA,Combinado,Unidade,0.50,1,0.50,1.50,66.67%
+Meia de Leite,CAFETARIA,Combinado,Unidade,0.45,1,0.45,1.20,62.50%
+Imperial,CERVEJAS,Barril 30L,Litro,45.00,200,0.225,1.10,79.55%
+Caneca,CERVEJAS,Barril 30L,Litro,45.00,100,0.450,2.20,79.55%
+Média,CERVEJAS,Barril 30L,Litro,45.00,133,0.338,1.50,77.47%
+Super Bock,CERVEJAS,Garrafa 0.33L,Unidade,0.60,1,0.60,1.50,60.00%
+Heineken,CERVEJAS,Garrafa 0.33L,Unidade,0.80,1,0.80,2.00,60.00%
+Sagres,CERVEJAS,Garrafa 0.33L,Unidade,0.60,1,0.60,1.50,60.00%
+Vinho Tinto,VINHOS,Garrafa 0.75L,Copo,8.00,6,1.33,2.50,46.80%
+Vinho Branco,VINHOS,Garrafa 0.75L,Copo,7.50,6,1.25,2.30,45.65%
+Vinho Verde,VINHOS,Garrafa 0.75L,Copo,6.50,6,1.08,2.00,45.83%
+Porto,VINHOS,Garrafa 0.75L,Copo,12.00,10,1.20,3.00,60.00%
+Coca-Cola,REFRIGERANTES,Garrafa 1L,Unidade,0.80,1,0.80,1.80,55.56%
+Sumol,REFRIGERANTES,Lata 0.33L,Unidade,0.50,1,0.50,1.50,66.67%
+Ice Tea,REFRIGERANTES,Garrafa 0.5L,Unidade,0.60,1,0.60,1.50,60.00%
+Água Mineral,ÁGUAS,Garrafa 0.5L,Unidade,0.20,1,0.20,1.00,80.00%
+Água com Gás,ÁGUAS,Garrafa 0.5L,Unidade,0.25,1,0.25,1.00,75.00%
+Pastelaria,ALIMENTAÇÃO,Unidade,Unidade,0.50,1,0.50,1.50,66.67%
+Chocolate,ALIMENTAÇÃO,Unidade,Unidade,0.40,1,0.40,1.20,66.67%
+Batata Frita,ALIMENTAÇÃO,Pacote,Unidade,0.60,1,0.60,1.50,60.00%
+Euromilhões,JOGOS_SANTA_CASA,Boletim,Unidade,2.50,1,2.50,2.50,0.00%
+Totoloto,JOGOS_SANTA_CASA,Boletim,Unidade,1.00,1,1.00,1.00,0.00%
+Raspadinha,JOGOS_SANTA_CASA,Unidade,Unidade,1.00,1,1.00,1.00,0.00%
