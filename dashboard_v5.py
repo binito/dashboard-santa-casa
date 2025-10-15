@@ -1825,15 +1825,19 @@ def main():
                 st.plotly_chart(fig_margens, use_container_width=True)
 
             with col2:
-                # Scatter: Vendas vs Margem
+                # Scatter: Vendas vs Margem (usar abs para tamanho)
+                # O tamanho não pode ser negativo, então usamos valores absolutos
+                tamanhos = analise_cat['Lucro_Bruto'].abs()
+
                 fig_scatter_rent = px.scatter(
                     x=analise_cat['Valor'],
                     y=analise_cat['Margem_Bruta_Pct'],
-                    size=analise_cat['Lucro_Bruto'],
-                    color=analise_cat.index,
+                    size=tamanhos,
+                    color=analise_cat['Lucro_Bruto'],  # Cor mostra se é positivo/negativo
                     hover_name=analise_cat.index,
-                    title="Vendas vs Margem (tamanho = lucro)",
-                    labels={'x': 'Vendas Totais (€)', 'y': 'Margem Bruta (%)'}
+                    title="Vendas vs Margem (tamanho = |lucro|)",
+                    labels={'x': 'Vendas Totais (€)', 'y': 'Margem Bruta (%)'},
+                    color_continuous_scale='RdYlGn'
                 )
 
                 fig_scatter_rent.update_layout(height=400)
