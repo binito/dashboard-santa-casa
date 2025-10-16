@@ -897,13 +897,32 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            # Gráfico de pizza - Distribuição por categoria
-            fig_pizza = criar_grafico_pizza(
-                df_filtrado,
-                'Categoria',
-                '🥧 Distribuição de Vendas por Categoria'
+            # Gráfico de barras horizontal - Distribuição por categoria (mais legível)
+            vendas_categoria = df_filtrado.groupby('Categoria')['Valor'].sum().sort_values(ascending=True)
+
+            fig_categoria = go.Figure(go.Bar(
+                x=vendas_categoria.values,
+                y=vendas_categoria.index,
+                orientation='h',
+                text=[formatar_moeda(v) for v in vendas_categoria.values],
+                textposition='auto',
+                marker=dict(
+                    color=vendas_categoria.values,
+                    colorscale='Blues',
+                    showscale=False
+                )
+            ))
+
+            fig_categoria.update_layout(
+                title="📊 Distribuição de Vendas por Categoria",
+                height=400,
+                margin=dict(t=50, b=50, l=150, r=50),
+                xaxis_title="Vendas (€)",
+                yaxis_title="",
+                showlegend=False
             )
-            st.plotly_chart(fig_pizza, use_container_width=True)
+
+            st.plotly_chart(fig_categoria, use_container_width=True)
 
         with col2:
             # Top 10 produtos
