@@ -1,6 +1,6 @@
 """
 Módulo de Gestão de Custos - Dashboard v5
-Gestão de custos de produtos e operacionais
+Gestão de custos de produtos e operacionais + Comissões Santa Casa
 """
 
 import pandas as pd
@@ -13,7 +13,22 @@ warnings.filterwarnings('ignore')
 
 
 class CostManager:
-    """Gestor de custos de produtos e operacionais"""
+    """Gestor de custos de produtos e operacionais + Comissões Santa Casa"""
+
+    # Percentagens de comissão dos jogos Santa Casa
+    COMISSOES_SANTA_CASA = {
+        'Euromilhões': 5.0,
+        'EuroDreams': 5.0,
+        'Totoloto': 7.0,
+        'M1lhao': 5.0,
+        'Totobola': 7.0,
+        'Hípicas': 7.0,
+        'Placard': 5.0,
+        'Lotaria Instantânea': 10.0,
+        'Raspadinha': 10.0,  # Alias para Lotaria Instantânea
+        'Lotaria Popular': 12.5,
+        'Lotaria Clássica': 12.7
+    }
 
     def __init__(self, custos_dir='dados_custos'):
         """
@@ -105,6 +120,90 @@ class CostManager:
 
         return 0.0
 
+    def is_jogo_santa_casa(self, nome_produto: str, categoria: str = None) -> bool:
+        """
+        Verifica se é um jogo da Santa Casa
+
+        Args:
+            nome_produto: Nome do produto
+            categoria: Categoria do produto
+
+        Returns:
+            True se for jogo Santa Casa
+        """
+        if categoria == 'JOGOS_SANTA_CASA':
+            return True
+
+        # Verificar por nome também
+        nome_lower = str(nome_produto).lower()
+        jogos_santa_casa = [jogo.lower() for jogo in self.COMISSOES_SANTA_CASA.keys()]
+
+        return any(jogo in nome_lower for jogo in jogos_santa_casa)
+
+    def get_comissao_santa_casa(self, nome_produto: str) -> float:
+        """
+        Retorna a percentagem de comissão de um jogo Santa Casa
+
+        Args:
+            nome_produto: Nome do jogo
+
+        Returns:
+            Percentagem de comissão (0 se não for jogo Santa Casa)
+        """
+        # Buscar por nome exato
+        if nome_produto in self.COMISSOES_SANTA_CASA:
+            return self.COMISSOES_SANTA_CASA[nome_produto]
+
+        # Buscar por nome parcial
+        nome_lower = str(nome_produto).lower()
+        for jogo, comissao in self.COMISSOES_SANTA_CASA.items():
+            if jogo.lower() in nome_lower or nome_lower in jogo.lower():
+                return comissao
+
+        return 0.0
+
+    def calcular_custo_ou_comissao(self, nome_produto: str, valor_venda: float,
+                                   categoria: str = None, qtd: float = 1.0) -> Tuple[float, str]:
+        """
+        Calcula custo (produtos) ou comissão (Santa Casa)
+
+        Args:
+            nome_produto: Nome do produto
+            valor_venda: Valor da venda
+            categoria: Categoria do produto
+            qtd: Quantidade vendida
+
+        Returns:
+            Tuple (custo_total, tipo) onde tipo é 'comissao' ou 'custo'
+        """
+        # Verificar se é jogo Santa Casa
+        if self.is_jogo_santa_casa(nome_produto, categoria):
+            # Calcular comissão: valor_venda × percentagem
+            percentagem = self.get_comissao_santa_casa(nome_produto)
+            comissao = valor_venda * (percentagem / 100.0)
+            return (comissao, 'comissao')
+        else:
+            # Calcular custo normal: custo_unitario × qtd
+            custo_unitario = self.get_custo_produto(nome_produto, categoria)
+            custo_total = custo_unitario * qtd
+            return (custo_total, 'custo')
+
+    def get_percentagem_efetiva(self, nome_produto: str, categoria: str = None) -> float:
+        """
+        Retorna a percentagem efetiva (comissão ou margem)
+
+        Args:
+            nome_produto: Nome do produto
+            categoria: Categoria
+
+        Returns:
+            Percentagem efetiva
+        """
+        if self.is_jogo_santa_casa(nome_produto, categoria):
+            return self.get_comissao_santa_casa(nome_produto)
+        else:
+            return self.get_margem_categoria(categoria) if categoria else 0.0
+
     def get_margem_categoria(self, categoria: str) -> float:
         """
         Retorna a margem objetivo de uma categoria
@@ -147,13 +246,13 @@ class CostManager:
 
     def calcular_custos_vendas(self, df_vendas: pd.DataFrame) -> pd.DataFrame:
         """
-        Adiciona informações de custo ao DataFrame de vendas
+        Adiciona informações de custo/comissão ao DataFrame de vendas
 
         Args:
             df_vendas: DataFrame com vendas (deve ter colunas: Produto, Categoria, Valor, Qtd)
 
         Returns:
-            DataFrame com colunas adicionais de custo
+            DataFrame com colunas adicionais de custo/comissão
         """
         df = df_vendas.copy()
 
@@ -162,20 +261,36 @@ class CostManager:
             print("Erro: DataFrame deve ter colunas 'Produto' e 'Valor'")
             return df
 
-        # Adicionar custo unitário
-        df['Custo_Unitario'] = df.apply(
-            lambda row: self.get_custo_produto(
-                row['Produto'],
-                row.get('Categoria')
-            ),
+        # Identificar se é jogo Santa Casa
+        df['Is_Santa_Casa'] = df.apply(
+            lambda row: self.is_jogo_santa_casa(row['Produto'], row.get('Categoria')),
             axis=1
         )
 
-        # Calcular custo total
-        if 'Qtd' in df.columns:
-            df['Custo_Total'] = df['Custo_Unitario'] * df['Qtd']
-        else:
-            df['Custo_Total'] = df['Custo_Unitario']
+        # Calcular custo/comissão
+        def calcular_custo_linha(row):
+            if row['Is_Santa_Casa']:
+                # Para Santa Casa: você PAGA à SC o valor principal
+                # e FICA COM apenas a comissão (percentagem)
+                percentagem = self.get_comissao_santa_casa(row['Produto'])
+                # Custo = o que paga à Santa Casa = valor × (100 - percentagem) / 100
+                custo_pago_sc = row['Valor'] * ((100 - percentagem) / 100.0)
+                return custo_pago_sc, percentagem
+            else:
+                # Para produtos: custo × quantidade
+                custo_unit = self.get_custo_produto(row['Produto'], row.get('Categoria'))
+                qtd = row.get('Qtd', 1.0)
+                return custo_unit * qtd, 0.0
+
+        resultados = df.apply(calcular_custo_linha, axis=1)
+        df['Custo_Total'] = resultados.apply(lambda x: x[0])
+        df['Percentagem_Comissao'] = resultados.apply(lambda x: x[1])
+
+        # Calcular custo unitário (para compatibilidade)
+        df['Custo_Unitario'] = df.apply(
+            lambda row: row['Custo_Total'] / row.get('Qtd', 1.0) if row.get('Qtd', 1.0) > 0 else 0,
+            axis=1
+        )
 
         # Calcular lucro bruto
         df['Lucro_Bruto'] = df['Valor'] - df['Custo_Total']
@@ -402,7 +517,7 @@ class CostManager:
 
     def calcular_metricas_financeiras(self, df_vendas: pd.DataFrame, dias_periodo: int) -> Dict:
         """
-        Calcula métricas financeiras principais
+        Calcula métricas financeiras principais (com separação comissões Santa Casa)
 
         Args:
             df_vendas: DataFrame com vendas e custos
@@ -418,6 +533,14 @@ class CostManager:
         receita_total = df_vendas['Valor'].sum()
         cogs_total = df_vendas['Custo_Total'].sum() if 'Custo_Total' in df_vendas.columns else 0
         lucro_bruto = df_vendas['Lucro_Bruto'].sum() if 'Lucro_Bruto' in df_vendas.columns else 0
+
+        # Separar comissões Santa Casa de custos de produtos
+        if 'Is_Santa_Casa' in df_vendas.columns:
+            comissoes_sc = df_vendas[df_vendas['Is_Santa_Casa'] == True]['Custo_Total'].sum()
+            custos_produtos = df_vendas[df_vendas['Is_Santa_Casa'] == False]['Custo_Total'].sum()
+        else:
+            comissoes_sc = 0
+            custos_produtos = cogs_total
 
         # Custos operacionais
         custos_operacionais = self.get_custos_operacionais_periodo(dias_periodo)
@@ -435,6 +558,8 @@ class CostManager:
         return {
             'receita_total': receita_total,
             'cogs_total': cogs_total,
+            'comissoes_santa_casa': comissoes_sc,
+            'custos_produtos': custos_produtos,
             'lucro_bruto': lucro_bruto,
             'custos_operacionais': custos_operacionais,
             'lucro_liquido': lucro_liquido,

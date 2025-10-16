@@ -1,25 +1,65 @@
 Produto,Categoria,Tipo_Compra,Unidade_Compra,Preco_Compra,Rendimento,Custo_Unitario,Preco_Venda,Margem_Bruta
-Café,CAFETARIA,Kg,Unidade,40.40,131.58,0.307,0.70,56.14%
-Galão,CAFETARIA,Combinado,Unidade,0.50,1,0.50,1.50,66.67%
-Meia de Leite,CAFETARIA,Combinado,Unidade,0.45,1,0.45,1.20,62.50%
-Imperial,CERVEJAS,Barril 30L,Litro,45.00,200,0.225,1.10,79.55%
-Caneca,CERVEJAS,Barril 30L,Litro,45.00,100,0.450,2.20,79.55%
-Média,CERVEJAS,Barril 30L,Litro,45.00,133,0.338,1.50,77.47%
-Super Bock,CERVEJAS,Garrafa 0.33L,Unidade,0.60,1,0.60,1.50,60.00%
-Heineken,CERVEJAS,Garrafa 0.33L,Unidade,0.80,1,0.80,2.00,60.00%
-Sagres,CERVEJAS,Garrafa 0.33L,Unidade,0.60,1,0.60,1.50,60.00%
-Vinho Tinto,VINHOS,Garrafa 0.75L,Copo,8.00,6,1.33,2.50,46.80%
-Vinho Branco,VINHOS,Garrafa 0.75L,Copo,7.50,6,1.25,2.30,45.65%
-Vinho Verde,VINHOS,Garrafa 0.75L,Copo,6.50,6,1.08,2.00,45.83%
-Porto,VINHOS,Garrafa 0.75L,Copo,12.00,10,1.20,3.00,60.00%
-Coca-Cola,REFRIGERANTES,Garrafa 1L,Unidade,0.80,1,0.80,1.80,55.56%
+CAFÉ,CAFETARIA,Kg,Unidade,40.40,131.58,0.307,0.90,65.89%
+Abatanado,CAFETARIA,Kg,Unidade,40.40,131.58,0.307,0.90,65.89%
+Abatanado Duplo,CAFETARIA,Combinado,Unidade,0.52,1,0.52,1.30,60.00%
+GALÃO,CAFETARIA,Combinado,Unidade,0.50,1,0.50,1.06,52.83%
+Meia de leite,CAFETARIA,Combinado,Unidade,0.35,1,0.35,0.88,60.23%
+CHÁ,CAFETARIA,Saqueta,Unidade,0.30,1,0.30,0.86,65.12%
+Imperial,CERVEJAS,Barril 30L,Litro,59.35,200,0.30,1.10,72.73%
+Happy Hour Imperial,CERVEJAS,Barril 30L,Litro,59.35,200,0.225,0.80,71.88%
+CERVEJA MINI,CERVEJAS,Grade 24un,Unidade,9.46,24,0.40,1.10,63.64%
+CERVEJA MEDIA,CERVEJAS,Grade 24un,Unidade,13.49,24,0.56,1.26,55.56%
+Caneca,CERVEJAS,Barril 30L,Litro,59.35,100,0.450,2.72,83.46%
+Heineken s/ tara,CERVEJAS,Garrafa 0.33L,Unidade,0.80,1,0.80,1.29,37.98%
+Heineken Silver 25cl,CERVEJAS,Garrafa 0.33L,Unidade,0.80,1,0.80,1.30,38.46%
+Heineken 0.0% 25cl,CERVEJAS,Garrafa 0.33L,Unidade,0.75,1,0.75,1.20,37.50%
+CERVEJA S/ALCOOL,CERVEJAS,Garrafa 0.33L,Unidade,0.75,1,0.75,1.38,45.65%
+Cidra,CERVEJAS,Garrafa 0.33L,Unidade,0.70,1,0.70,1.47,52.38%
+Panaché,CERVEJAS,Barril 30L,Litro,59.35,200,0.30,1.10,72.73%
+TANGO,CERVEJAS,Barril 30L,Litro,59.35,200,0.30,1.20,72.73%
+VINHO,VINHOS,Garrafa 0.75L,Copo,3.00,15,0.20,0.60,66.67%
+Porto,APERITIVOS,Garrafa 0.75L,Copo,12.00,10,1.20,1.40,14.29%
+Moscatel,APERITIVOS,Garrafa 0.75L,Copo,10.00,10,1.00,1.39,28.06%
+Moscatel Medio,APERITIVOS,Garrafa 0.75L,Copo,10.00,10,1.00,1.50,33.33%
+Martini,APERITIVOS,Caixa 50x5.5cl,Unidade,21.17,50,0.42,1.50,72.00%
+Martini com Cerveja,APERITIVOS,Combinado,Unidade,0.72,1,0.72,1.50,52.00%
+KIR,APERITIVOS,Combinado,Unidade,0.60,1,0.60,0.99,39.39%
+GINJA,APERITIVOS,Garrafa 0.70L,Copo,12.00,15,0.80,0.97,17.53%
+Ricard,APERITIVOS,Garrafa 0.70L,Copo,15.00,15,1.00,1.50,33.33%
+Aguardente,DIGESTIVOS,Garrafa 0.70L,Copo,12.00,30,0.40,0.62,35.48%
+BRANDYS,DIGESTIVOS,Garrafa 0.70L,Copo,15.00,15,1.00,1.39,28.06%
+Licor beirão,DIGESTIVOS,Garrafa 0.70L,Copo,18.00,20,0.90,1.33,32.33%
+Amêndoa Amarga,DIGESTIVOS,Garrafa 0.70L,Copo,18.00,20,0.90,1.40,35.71%
+Ponche,DIGESTIVOS,Garrafa 0.70L,Copo,8.00,15,0.53,1.00,46.67%
+Whisky,DIGESTIVOS,Garrafa 0.70L,Copo,30.00,20,1.50,2.50,40.00%
+Whisky Velho,DIGESTIVOS,Garrafa 0.70L,Copo,40.00,20,2.00,3.00,33.33%
+Aliança Velha,DIGESTIVOS,Garrafa 0.70L,Copo,25.00,15,1.67,2.50,33.33%
+São Domingos,DIGESTIVOS,Garrafa 0.70L,Copo,20.00,15,1.33,2.31,42.42%
 Sumol,REFRIGERANTES,Lata 0.33L,Unidade,0.50,1,0.50,1.50,66.67%
-Ice Tea,REFRIGERANTES,Garrafa 0.5L,Unidade,0.60,1,0.60,1.50,60.00%
-Água Mineral,ÁGUAS,Garrafa 0.5L,Unidade,0.20,1,0.20,1.00,80.00%
-Água com Gás,ÁGUAS,Garrafa 0.5L,Unidade,0.25,1,0.25,1.00,75.00%
-Pastelaria,ALIMENTAÇÃO,Unidade,Unidade,0.50,1,0.50,1.50,66.67%
-Chocolate,ALIMENTAÇÃO,Unidade,Unidade,0.40,1,0.40,1.20,66.67%
-Batata Frita,ALIMENTAÇÃO,Pacote,Unidade,0.60,1,0.60,1.50,60.00%
-Euromilhões,JOGOS_SANTA_CASA,Boletim,Unidade,2.50,1,2.50,2.50,0.00%
-Totoloto,JOGOS_SANTA_CASA,Boletim,Unidade,1.00,1,1.00,1.00,0.00%
-Raspadinha,JOGOS_SANTA_CASA,Unidade,Unidade,1.00,1,1.00,1.00,0.00%
+7UP,REFRIGERANTES,Lata 0.33L,Unidade,0.50,1,0.50,1.50,66.67%
+Fanta,REFRIGERANTES,Lata 0.33L,Unidade,0.50,1,0.50,1.50,66.67%
+REFRIGERANTES,REFRIGERANTES,Lata 0.33L,Unidade,0.60,1,0.60,1.42,57.75%
+Icetea,REFRIGERANTES,Garrafa 0.5L,Unidade,0.60,1,0.60,1.44,58.33%
+COMPAL,REFRIGERANTES,Embalagem,Unidade,0.55,1,0.55,1.30,57.69%
+Água 0.5cl,ÁGUAS,Pack 24x50cl,Unidade,6.11,24,0.25,0.80,68.75%
+AGUA MINERAL 0.33 CL,ÁGUAS,Pack 24x33cl,Unidade,5.87,24,0.24,0.70,65.71%
+AGUA MINERAL 1.5L,ÁGUAS,Pack 12x1.5L,Unidade,5.52,12,0.46,1.12,58.93%
+AGUAS C/GÁS,ÁGUAS,Garrafa 0.5L,Unidade,0.25,1,0.25,1.10,77.27%
+AGUAS C/SABOR,ÁGUAS,Garrafa 0.5L,Unidade,0.35,1,0.35,1.30,73.08%
+PASTELARIA,ALIMENTAÇÃO,Unidade,Unidade,0.50,1,0.50,1.12,55.36%
+Bolos,ALIMENTAÇÃO,Unidade,Unidade,0.45,1,0.45,1.13,60.18%
+CHOCOLATES,ALIMENTAÇÃO,Unidade,Unidade,0.40,1,0.40,1.04,61.54%
+Halls,ALIMENTAÇÃO,Embalagem,Unidade,0.50,1,0.50,1.14,56.14%
+PASTILHAS,ALIMENTAÇÃO,Embalagem,Unidade,0.05,1,0.05,0.10,50.00%
+TRIDENT,ALIMENTAÇÃO,Embalagem,Unidade,0.50,1,0.50,1.16,56.90%
+PACOTE BATATA FRITA PEQUENO,OUTROS,Pacote,Unidade,0.60,1,0.60,1.25,52.00%
+PACOTE BATATA FRITA GRANDE,OUTROS,Pacote,Unidade,1.00,1,1.00,2.00,50.00%
+Pringles,OUTROS,Pacote,Unidade,0.40,1,0.40,0.80,50.00%
+TUC,OUTROS,Pacote,Unidade,0.30,1,0.30,0.60,50.00%
+Kranch,OUTROS,Pacote,Unidade,0.45,1,0.45,0.90,50.00%
+Takis,OUTROS,Pacote,Unidade,0.80,1,0.80,1.61,50.31%
+Travesseiro,OUTROS,Unidade,Unidade,0.40,1,0.40,0.75,46.67%
+Isqueiros,OUTROS,Unidade,Unidade,0.60,1,0.60,1.20,50.00%
+JOGOS,OUTROS,Unidade,Unidade,0.50,1,0.50,1.00,50.00%
+OUTROS,OUTROS,Unidade,Unidade,0.40,1,0.40,1.25,68.00%
+Outros,OUTROS,Unidade,Unidade,1.50,1,1.50,2.90,48.28%

@@ -17,6 +17,11 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 from pathlib import Path
+from io import BytesIO
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Configuração da página
 st.set_page_config(
@@ -82,19 +87,24 @@ st.markdown("""
         border-top: 2px solid #e0e0e0;
     }
 
-    /* Tabs customizadas */
+    /* Tabs customizadas - responsivas com múltiplas linhas */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
+        gap: 8px;
+        flex-wrap: wrap !important;
+        overflow-x: visible !important;
     }
 
     .stTabs [data-baseweb="tab"] {
-        height: 60px;
+        min-height: 50px;
+        height: auto !important;
         background-color: white;
-        border-radius: 10px 10px 0 0;
-        padding: 10px 20px;
+        border-radius: 8px 8px 0 0;
+        padding: 8px 12px;
         font-weight: 600;
         color: #333 !important;
-        font-size: 16px !important;
+        font-size: 14px !important;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
     .stTabs [aria-selected="true"] {
@@ -105,6 +115,23 @@ st.markdown("""
     /* Garantir que o texto das tabs é visível */
     .stTabs button div {
         color: inherit !important;
+    }
+
+    /* Responsividade para ecrãs pequenos */
+    @media (max-width: 1200px) {
+        .stTabs [data-baseweb="tab"] {
+            font-size: 12px !important;
+            padding: 6px 10px;
+            min-height: 45px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .stTabs [data-baseweb="tab"] {
+            font-size: 11px !important;
+            padding: 5px 8px;
+            min-height: 40px;
+        }
     }
 
     /* Sidebar */
@@ -350,6 +377,300 @@ def criar_grafico_waterfall(valores, labels, titulo):
     return fig
 
 
+def gerar_relatorio_excel_avancado(df_filtrado, data_inicio, data_fim, categorias_selecionadas, metricas_financeiras, cost_manager):
+    """
+    Gera relatório Excel avançado com múltiplas abas, gráficos e formatação profissional
+    Adaptado para o contexto do Café Martins com análise de vendas, custos e rentabilidade
+    """
+    output = BytesIO()
+    wb = openpyxl.Workbook()
+
+    # Estilos de formatação
+    header_fill = PatternFill(start_color="1f77b4", end_color="1f77b4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    # ===== ABA 1: RESUMO EXECUTIVO =====
+    ws_resumo = wb.active
+    ws_resumo.title = "Resumo Executivo"
+
+    # Título
+    ws_resumo['A1'] = "RELATÓRIO DE ANÁLISE - CAFÉ MARTINS"
+    ws_resumo['A1'].font = Font(bold=True, size=16, color="1f77b4")
+    ws_resumo.merge_cells('A1:E1')
+
+    # Informações do relatório
+    ws_resumo['A3'] = "Período de Análise:"
+    ws_resumo['B3'] = f"{pd.to_datetime(data_inicio).strftime('%d/%m/%Y')} até {pd.to_datetime(data_fim).strftime('%d/%m/%Y')}"
+    ws_resumo['A4'] = "Data de Geração:"
+    ws_resumo['B4'] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    ws_resumo['A5'] = "Categorias Analisadas:"
+    ws_resumo['B5'] = ", ".join(categorias_selecionadas) if categorias_selecionadas else "Todas"
+
+    # Métricas principais
+    ws_resumo['A7'] = "MÉTRICAS PRINCIPAIS"
+    ws_resumo['A7'].font = Font(bold=True, size=14, color="1f77b4")
+    ws_resumo.merge_cells('A7:E7')
+
+    ws_resumo['A9'] = "Total de Vendas (€)"
+    ws_resumo['B9'] = df_filtrado['Valor'].sum()
+    ws_resumo['B9'].number_format = '#,##0 €'
+
+    ws_resumo['A10'] = "Total de Transações"
+    ws_resumo['B10'] = len(df_filtrado)
+
+    ws_resumo['A11'] = "Média Diária (€)"
+    ws_resumo['B11'] = df_filtrado.groupby('Data')['Valor'].sum().mean()
+    ws_resumo['B11'].number_format = '#,##0 €'
+
+    ws_resumo['A12'] = "Ticket Médio (€)"
+    total_qtd = df_filtrado['Qtd'].sum() if 'Qtd' in df_filtrado.columns else 1
+    ws_resumo['B12'] = df_filtrado['Valor'].sum() / total_qtd if total_qtd > 0 else 0
+    ws_resumo['B12'].number_format = '#,##0.00 €'
+
+    # Métricas Financeiras
+    ws_resumo['A14'] = "ANÁLISE FINANCEIRA"
+    ws_resumo['A14'].font = Font(bold=True, size=14, color="1f77b4")
+    ws_resumo.merge_cells('A14:E14')
+
+    ws_resumo['A16'] = "Receita Total (€)"
+    ws_resumo['B16'] = metricas_financeiras.get('receita_total', 0)
+    ws_resumo['B16'].number_format = '#,##0 €'
+
+    ws_resumo['A17'] = "Custos Totais (€)"
+    ws_resumo['B17'] = metricas_financeiras.get('custo_total', 0)
+    ws_resumo['B17'].number_format = '#,##0 €'
+
+    ws_resumo['A18'] = "Lucro Líquido (€)"
+    ws_resumo['B18'] = metricas_financeiras.get('lucro_liquido', 0)
+    ws_resumo['B18'].number_format = '#,##0 €'
+
+    ws_resumo['A19'] = "Margem Líquida (%)"
+    ws_resumo['B19'] = metricas_financeiras.get('margem_liquida_pct', 0) / 100
+    ws_resumo['B19'].number_format = '0.00%'
+
+    # Ajustar largura das colunas
+    ws_resumo.column_dimensions['A'].width = 30
+    ws_resumo.column_dimensions['B'].width = 25
+
+    # ===== ABA 2: DADOS DETALHADOS =====
+    ws_dados = wb.create_sheet("Dados Detalhados")
+
+    # Preparar dados para exportação
+    df_export = df_filtrado.copy()
+    colunas_exportar = ['Data', 'Produto', 'Categoria', 'Subcategoria', 'Valor', 'Qtd', 'Fonte']
+    colunas_exportar = [col for col in colunas_exportar if col in df_export.columns]
+    df_export = df_export[colunas_exportar]
+
+    if 'Data' in df_export.columns:
+        df_export['Data'] = df_export['Data'].dt.strftime('%d/%m/%Y')
+
+    # Adicionar cabeçalhos
+    headers = list(df_export.columns)
+    for col_num, header in enumerate(headers, 1):
+        cell = ws_dados.cell(row=1, column=col_num, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    # Adicionar dados
+    for r_idx, row in enumerate(dataframe_to_rows(df_export, index=False, header=False), 2):
+        for c_idx, value in enumerate(row, 1):
+            cell = ws_dados.cell(row=r_idx, column=c_idx, value=value)
+            cell.border = border
+            if 'Valor' in headers and c_idx == headers.index('Valor') + 1:
+                cell.number_format = '#,##0.00 €'
+
+    # Ajustar largura das colunas
+    for column in ws_dados.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws_dados.column_dimensions[column_letter].width = adjusted_width
+
+    # ===== ABA 3: ANÁLISE POR CATEGORIA =====
+    ws_categorias = wb.create_sheet("Análise por Categoria")
+
+    # Criar tabela de resumo por categoria
+    resumo_cat = df_filtrado.groupby('Categoria').agg({
+        'Valor': ['sum', 'mean', 'count']
+    }).reset_index()
+    resumo_cat.columns = ['Categoria', 'Total (€)', 'Média (€)', 'Nº Vendas']
+    resumo_cat = resumo_cat.sort_values('Total (€)', ascending=False)
+
+    # Cabeçalhos
+    ws_categorias['A1'] = "ANÁLISE POR CATEGORIA"
+    ws_categorias['A1'].font = Font(bold=True, size=14, color="1f77b4")
+    ws_categorias.merge_cells('A1:D1')
+
+    for col_num, header in enumerate(resumo_cat.columns, 1):
+        cell = ws_categorias.cell(row=3, column=col_num, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    # Dados
+    for r_idx, row in enumerate(dataframe_to_rows(resumo_cat, index=False, header=False), 4):
+        for c_idx, value in enumerate(row, 1):
+            cell = ws_categorias.cell(row=r_idx, column=c_idx, value=value)
+            cell.border = border
+            if c_idx in [2, 3]:
+                cell.number_format = '#,##0.00 €'
+
+    # Gráfico de barras
+    if len(resumo_cat) > 0:
+        chart = BarChart()
+        chart.title = "Vendas por Categoria"
+        chart.style = 10
+        chart.y_axis.title = 'Valor (€)'
+        chart.x_axis.title = 'Categoria'
+
+        data = Reference(ws_categorias, min_col=2, min_row=3, max_row=3+len(resumo_cat))
+        cats = Reference(ws_categorias, min_col=1, min_row=4, max_row=3+len(resumo_cat))
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.height = 12
+        chart.width = 20
+
+        ws_categorias.add_chart(chart, "F3")
+
+    # Ajustar largura
+    for col in ['A', 'B', 'C', 'D']:
+        ws_categorias.column_dimensions[col].width = 20
+
+    # ===== ABA 4: RENTABILIDADE =====
+    ws_rent = wb.create_sheet("Rentabilidade")
+
+    ws_rent['A1'] = "ANÁLISE DE RENTABILIDADE"
+    ws_rent['A1'].font = Font(bold=True, size=14, color="1f77b4")
+    ws_rent.merge_cells('A1:E1')
+
+    # Análise de rentabilidade por categoria
+    analise_rent = cost_manager.analisar_rentabilidade_categorias(df_filtrado)
+
+    if not analise_rent.empty:
+        # Cabeçalhos
+        ws_rent['A3'] = "Categoria"
+        ws_rent['B3'] = "Vendas (€)"
+        ws_rent['C3'] = "Custos (€)"
+        ws_rent['D3'] = "Lucro Bruto (€)"
+        ws_rent['E3'] = "Margem (%)"
+
+        for col in ['A', 'B', 'C', 'D', 'E']:
+            cell = ws_rent[f'{col}3']
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        # Dados
+        row_num = 4
+        for categoria, row in analise_rent.iterrows():
+            ws_rent[f'A{row_num}'] = categoria
+            ws_rent[f'B{row_num}'] = row['Valor']
+            ws_rent[f'C{row_num}'] = row['Custo_Total']
+            ws_rent[f'D{row_num}'] = row['Lucro_Bruto']
+            ws_rent[f'E{row_num}'] = row['Margem_Bruta_Pct'] / 100
+
+            for col in ['A', 'B', 'C', 'D', 'E']:
+                ws_rent[f'{col}{row_num}'].border = border
+
+            ws_rent[f'B{row_num}'].number_format = '#,##0 €'
+            ws_rent[f'C{row_num}'].number_format = '#,##0 €'
+            ws_rent[f'D{row_num}'].number_format = '#,##0 €'
+            ws_rent[f'E{row_num}'].number_format = '0.00%'
+
+            row_num += 1
+
+        # Gráfico de margens
+        if len(analise_rent) > 0:
+            chart = BarChart()
+            chart.title = "Margem Bruta por Categoria"
+            chart.style = 11
+            chart.y_axis.title = 'Margem (%)'
+            chart.x_axis.title = 'Categoria'
+
+            data = Reference(ws_rent, min_col=5, min_row=3, max_row=3+len(analise_rent))
+            cats = Reference(ws_rent, min_col=1, min_row=4, max_row=3+len(analise_rent))
+            chart.add_data(data, titles_from_data=True)
+            chart.set_categories(cats)
+            chart.height = 12
+            chart.width = 20
+
+            ws_rent.add_chart(chart, "G3")
+
+    # Ajustar largura
+    for col in ['A', 'B', 'C', 'D', 'E']:
+        ws_rent.column_dimensions[col].width = 18
+
+    # ===== ABA 5: ANÁLISE TEMPORAL =====
+    ws_temporal = wb.create_sheet("Análise Temporal")
+
+    ws_temporal['A1'] = "ANÁLISE TEMPORAL"
+    ws_temporal['A1'].font = Font(bold=True, size=14, color="1f77b4")
+    ws_temporal.merge_cells('A1:C1')
+
+    # Vendas diárias
+    vendas_diarias = df_filtrado.groupby('Data')['Valor'].sum().reset_index()
+    vendas_diarias['Data'] = vendas_diarias['Data'].dt.strftime('%d/%m/%Y')
+    vendas_diarias.columns = ['Data', 'Vendas (€)']
+
+    # Cabeçalhos
+    for col_num, header in enumerate(vendas_diarias.columns, 1):
+        cell = ws_temporal.cell(row=3, column=col_num, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    # Dados
+    for r_idx, row in enumerate(dataframe_to_rows(vendas_diarias, index=False, header=False), 4):
+        for c_idx, value in enumerate(row, 1):
+            cell = ws_temporal.cell(row=r_idx, column=c_idx, value=value)
+            cell.border = border
+            if c_idx == 2:
+                cell.number_format = '#,##0 €'
+
+    # Gráfico de linha
+    if len(vendas_diarias) > 1:
+        line_chart = LineChart()
+        line_chart.title = "Evolução Temporal das Vendas"
+        line_chart.style = 12
+        line_chart.y_axis.title = 'Vendas (€)'
+        line_chart.x_axis.title = 'Data'
+
+        data = Reference(ws_temporal, min_col=2, min_row=3, max_row=3+len(vendas_diarias))
+        cats = Reference(ws_temporal, min_col=1, min_row=4, max_row=3+len(vendas_diarias))
+        line_chart.add_data(data, titles_from_data=True)
+        line_chart.set_categories(cats)
+        line_chart.height = 12
+        line_chart.width = 20
+
+        ws_temporal.add_chart(line_chart, "E3")
+
+    # Ajustar largura
+    ws_temporal.column_dimensions['A'].width = 20
+    ws_temporal.column_dimensions['B'].width = 20
+
+    # Salvar o workbook
+    wb.save(output)
+    output.seek(0)
+    return output
+
+
 # Interface principal
 def main():
     # Cabeçalho
@@ -404,7 +725,7 @@ def main():
     # Filtro de subcategoria (dependente da categoria)
     if categorias_selecionadas:
         subcategorias_disponiveis = sorted(
-            df[df['Categoria'].isin(categorias_selecionadas)]['Subcategoria'].unique()
+            df[df['Categoria'].isin(categorias_selecionadas)]['Subcategoria'].dropna().astype(str).unique()
         )
         subcategorias_selecionadas = st.sidebar.multiselect(
             "Selecionar Subcategorias",
@@ -1585,7 +1906,7 @@ def main():
         # Botões de exportação
         st.subheader("💾 Exportar Dados")
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             # Exportar para CSV
@@ -1597,11 +1918,10 @@ def main():
                 mime="text/csv",
                 use_container_width=True
             )
+            st.caption("Exportação simples em CSV")
 
         with col2:
-            # Exportar para Excel
-            from io import BytesIO
-
+            # Exportar para Excel Simples
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_exibir.to_excel(writer, sheet_name='Vendas', index=False)
@@ -1626,6 +1946,48 @@ def main():
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
+            st.caption("Excel simples (2 abas)")
+
+        with col3:
+            # Exportar para Excel Avançado
+            if st.button("📊 Gerar Relatório Excel Avançado", use_container_width=True):
+                with st.spinner("Gerando relatório Excel profissional..."):
+                    try:
+                        # Calcular métricas financeiras para o relatório
+                        metricas_financeiras_temp = cost_manager.calcular_metricas_financeiras(df_filtrado, dias_periodo)
+
+                        excel_avancado = gerar_relatorio_excel_avancado(
+                            df_filtrado,
+                            data_inicio,
+                            data_fim,
+                            categorias_selecionadas,
+                            metricas_financeiras_temp,
+                            cost_manager
+                        )
+
+                        nome_arquivo = f"Relatorio_CafeMartins_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+                        st.download_button(
+                            label="📥 Download Relatório Completo",
+                            data=excel_avancado,
+                            file_name=nome_arquivo,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="download_avancado"
+                        )
+
+                        st.success("✅ Relatório avançado gerado!")
+                        st.info(
+                            "**Conteúdo do relatório:**\n"
+                            "- 📋 Resumo Executivo\n"
+                            "- 📊 Dados Detalhados\n"
+                            "- 🏆 Análise por Categoria (com gráfico)\n"
+                            "- 💰 Rentabilidade (com gráfico)\n"
+                            "- 📈 Análise Temporal (com gráfico)"
+                        )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar relatório: {str(e)}")
+            st.caption("Relatório completo com 5 abas e gráficos")
 
         st.markdown("---")
 
@@ -1692,16 +2054,22 @@ def main():
         with col1:
             st.subheader("📊 Distribuição de Custos")
 
+            # Separar comissões Santa Casa de custos de produtos
+            comissoes_sc = metricas_financeiras.get('comissoes_santa_casa', 0)
+            custos_prods = metricas_financeiras.get('custos_produtos', 0)
+            custos_ops = metricas_financeiras.get('custos_operacionais', 0)
+
             custos_breakdown = {
-                'Custos de Produtos (COGS)': metricas_financeiras.get('cogs_total', 0),
-                'Custos Operacionais': metricas_financeiras.get('custos_operacionais', 0)
+                'Comissões Santa Casa': comissoes_sc,
+                'Custos de Produtos': custos_prods,
+                'Custos Operacionais': custos_ops
             }
 
             fig_custos = go.Figure(data=[go.Pie(
                 labels=list(custos_breakdown.keys()),
                 values=list(custos_breakdown.values()),
                 hole=0.4,
-                marker=dict(colors=['#ff6b6b', '#4ecdc4'])
+                marker=dict(colors=['#4ecdc4', '#ff6b6b', '#ffd700'])
             )])
 
             fig_custos.update_layout(
@@ -1710,6 +2078,11 @@ def main():
             )
 
             st.plotly_chart(fig_custos, use_container_width=True)
+
+            # Info sobre comissões
+            if comissoes_sc > 0:
+                percentagem_comissao = (comissoes_sc / metricas_financeiras.get('receita_total', 1)) * 100
+                st.info(f"💡 Comissões Santa Casa: {formatar_moeda(comissoes_sc)} ({percentagem_comissao:.1f}% das vendas)")
 
         with col2:
             st.subheader("💹 Custos Operacionais Detalhados")
@@ -1871,10 +2244,13 @@ def main():
 
             if 'Lucro_Bruto' in df_filtrado.columns:
                 top_rent = df_filtrado.groupby('Produto').agg({
+                    'Valor': 'sum',
                     'Lucro_Bruto': 'sum',
-                    'Margem_Bruta_Pct': 'mean',
                     'Qtd': 'sum'
                 }).sort_values('Lucro_Bruto', ascending=False).head(10)
+
+                # Calcular margem corretamente: (Lucro Total / Valor Total) × 100
+                top_rent['Margem_Bruta_Pct'] = (top_rent['Lucro_Bruto'] / top_rent['Valor'] * 100).round(1)
 
                 for idx, (produto, row) in enumerate(top_rent.iterrows(), 1):
                     st.markdown(
@@ -1887,10 +2263,13 @@ def main():
 
             if 'Lucro_Bruto' in df_filtrado.columns:
                 bottom_rent = df_filtrado.groupby('Produto').agg({
+                    'Valor': 'sum',
                     'Lucro_Bruto': 'sum',
-                    'Margem_Bruta_Pct': 'mean',
                     'Qtd': 'sum'
                 }).sort_values('Lucro_Bruto', ascending=True).head(10)
+
+                # Calcular margem corretamente: (Lucro Total / Valor Total) × 100
+                bottom_rent['Margem_Bruta_Pct'] = (bottom_rent['Lucro_Bruto'] / bottom_rent['Valor'] * 100).round(1)
 
                 for idx, (produto, row) in enumerate(bottom_rent.iterrows(), 1):
                     st.markdown(

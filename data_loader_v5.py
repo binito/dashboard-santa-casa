@@ -7,6 +7,7 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import warnings
+import re
 from data_loader_v4 import DataLoaderV4
 from cost_manager import CostManager
 
@@ -20,12 +21,91 @@ class DataLoaderV5(DataLoaderV4):
                  santa_casa_dir='dados_vendas',
                  pos1_dir='/home/jorge/Documentos/pos/pos_1',
                  pos2_dir='/home/jorge/Documentos/pos/pos_2',
-                 custos_dir='dados_custos'):
+                 custos_dir='dados_custos',
+                 santa_casa_file='/home/jorge/Documentos/Santa casa/dados/dados_extracao.txt'):
         # Inicializar classe pai
         super().__init__(santa_casa_dir, pos1_dir, pos2_dir)
 
         # Inicializar gestor de custos
         self.cost_manager = CostManager(custos_dir)
+
+        # Ficheiro da Santa Casa (formato do dashboard original)
+        self.santa_casa_file = Path(santa_casa_file)
+
+    def carregar_santa_casa_extracao(self):
+        """
+        Carrega dados do ficheiro dados_extracao.txt da Santa Casa
+        (Formato usado no dashboard original da porta 8501)
+        """
+        if not self.santa_casa_file.exists():
+            print(f"Ficheiro Santa Casa não encontrado: {self.santa_casa_file}")
+            return pd.DataFrame()
+
+        try:
+            # Lendo o arquivo
+            try:
+                text = self.santa_casa_file.read_text(encoding='utf-8')
+            except UnicodeDecodeError:
+                try:
+                    text = self.santa_casa_file.read_text(encoding='cp1252')
+                except UnicodeDecodeError:
+                    text = self.santa_casa_file.read_text(encoding='latin-1')
+
+            data = text.splitlines()
+            records = []
+
+            # Regex para extrair dados
+            pattern = r'^(.+?):\s*(\d+\.\d+)\s*\(Data de Emiss[ãa]o:\s*(\d{2}-\d{2}-\d{4})\)'
+
+            for line in data:
+                line = line.strip()
+                if not line:
+                    continue
+
+                match = re.match(pattern, line)
+                if match:
+                    jogo = match.group(1).strip()
+                    valor = float(match.group(2))
+                    data_emissao = match.group(3)
+
+                    # Renomear jogos específicos
+                    if 'Subtotal (LI)' in jogo:
+                        jogo = 'Lotaria Instantânea'
+                    elif 'Subtotal (LP)' in jogo:
+                        jogo = 'Lotaria Popular'
+                    elif 'Subtotal (LC)' in jogo:
+                        jogo = 'Lotaria Clássica'
+
+                    records.append({
+                        'Produto': jogo,
+                        'Valor': valor,
+                        'Data_Emissao': data_emissao
+                    })
+
+            # Criar DataFrame
+            df = pd.DataFrame(records)
+            if df.empty:
+                return df
+
+            df['Data_Emissao'] = pd.to_datetime(df['Data_Emissao'], format='%d-%m-%Y')
+
+            # Adicionar +2 dias a todas as datas (formato da Santa Casa)
+            df['Data'] = df['Data_Emissao'] + pd.Timedelta(days=2)
+
+            # Adicionar metadados
+            df['Fonte'] = 'Santa Casa'
+            df['Categoria'] = 'JOGOS_SANTA_CASA'
+            df['Qtd'] = 1.0  # Jogos Santa Casa são vendas totais, não unidades
+
+            # Selecionar colunas finais
+            df = df[['Data', 'Produto', 'Valor', 'Qtd', 'Fonte', 'Categoria']].copy()
+
+            print(f"✓ Carregados {len(df)} registos da Santa Casa")
+            return df
+
+        except Exception as e:
+            print(f"Erro ao carregar dados Santa Casa: {e}")
+            return pd.DataFrame()
 
     def carregar_tudo_integrado_com_custos(self):
         """
@@ -34,13 +114,41 @@ class DataLoaderV5(DataLoaderV4):
         Returns:
             DataFrame completo com vendas e custos
         """
-        # Carregar dados de vendas (usando método da classe pai)
-        df_vendas = self.carregar_tudo_integrado()
+        # Carregar dados da Santa Casa (ficheiro único)
+        print("Carregando dados Santa Casa...")
+        df_santa_casa = self.carregar_santa_casa_extracao()
 
-        if df_vendas.empty:
+        # Carregar dados POS (café e outros)
+        print("Carregando vendas de café...")
+        df_cafe = self.carregar_vendas_cafe()
+
+        print("Carregando outros produtos...")
+        df_outros = self.carregar_outros_produtos()
+
+        # Combinar todos os DataFrames
+        dfs = []
+        if not df_santa_casa.empty:
+            dfs.append(df_santa_casa)
+        if not df_cafe.empty:
+            dfs.append(df_cafe)
+        if not df_outros.empty:
+            dfs.append(df_outros)
+
+        if not dfs:
             return pd.DataFrame()
 
+        df_vendas = pd.concat(dfs, ignore_index=True)
+        df_vendas = df_vendas.sort_values('Data').reset_index(drop=True)
+
+        # Adicionar colunas temporais
+        df_vendas['Ano'] = df_vendas['Data'].dt.year
+        df_vendas['Mes'] = df_vendas['Data'].dt.month
+        df_vendas['Semana'] = df_vendas['Data'].dt.isocalendar().week
+        df_vendas['Dia_Semana'] = df_vendas['Data'].dt.dayofweek
+        df_vendas['Trimestre'] = df_vendas['Data'].dt.quarter
+
         # Adicionar informações de custos
+        print("Calculando custos e comissões...")
         df_completo = self.cost_manager.calcular_custos_vendas(df_vendas)
 
         return df_completo
@@ -167,9 +275,11 @@ class DataLoaderV5(DataLoaderV4):
             'Valor': 'sum',
             'Custo_Total': 'sum',
             'Lucro_Bruto': 'sum',
-            'Margem_Bruta_Pct': 'mean',
             'Qtd': 'sum'
         }).round(2)
+
+        # Calcular margem corretamente: (Lucro Total / Valor Total) × 100
+        analise['Margem_Bruta_Pct'] = (analise['Lucro_Bruto'] / analise['Valor'] * 100).round(2)
 
         analise = analise.sort_values('Margem_Bruta_Pct')
 
@@ -196,9 +306,11 @@ class DataLoaderV5(DataLoaderV4):
         analise = df.groupby(['Produto', 'Categoria']).agg({
             'Valor': 'sum',
             'Lucro_Bruto': 'sum',
-            'Margem_Bruta_Pct': 'mean',
             'Qtd': 'sum'
         }).round(2)
+
+        # Calcular margem corretamente: (Lucro Total / Valor Total) × 100
+        analise['Margem_Bruta_Pct'] = (analise['Lucro_Bruto'] / analise['Valor'] * 100).round(2)
 
         # Filtrar alta margem (>50%) e alto lucro
         estrelas = analise[
