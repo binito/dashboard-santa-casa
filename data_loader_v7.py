@@ -1,6 +1,6 @@
 """
-Módulo de carregamento de dados para Dashboard v5
-Com integração de custos e análise de rentabilidade
+Módulo de carregamento de dados para Dashboard v7
+Com integração de custos REAIS do Despesify + custos estimados
 """
 
 import pandas as pd
@@ -9,25 +9,26 @@ from datetime import datetime
 import warnings
 import re
 from data_loader_v4 import DataLoaderV4
-from cost_manager import CostManager
+from cost_manager_v2 import CostManagerV2  # NOVA VERSÃO COM DESPESIFY
 
 warnings.filterwarnings('ignore')
 
 
-class DataLoaderV5(DataLoaderV4):
-    """Carregador de dados com integração de custos"""
+class DataLoaderV7(DataLoaderV4):
+    """Carregador de dados com integração de custos REAIS (Despesify) + estimados"""
 
     def __init__(self,
                  santa_casa_dir='dados_vendas',
                  pos1_dir='/home/jorge/Documentos/pos/pos_1',
                  pos2_dir='/home/jorge/Documentos/pos/pos_2',
                  custos_dir='dados_custos',
-                 santa_casa_file='/home/jorge/Documentos/Santa casa/dados/dados_extracao.txt'):
+                 santa_casa_file='/home/jorge/Documentos/Santa casa/dados/dados_extracao.txt',
+                 usar_despesify=True):
         # Inicializar classe pai
         super().__init__(santa_casa_dir, pos1_dir, pos2_dir)
 
-        # Inicializar gestor de custos
-        self.cost_manager = CostManager(custos_dir)
+        # Inicializar gestor de custos v2 (com Despesify)
+        self.cost_manager = CostManagerV2(custos_dir, usar_despesify=usar_despesify)
 
         # Ficheiro da Santa Casa (formato do dashboard original)
         self.santa_casa_file = Path(santa_casa_file)
@@ -179,14 +180,18 @@ class DataLoaderV5(DataLoaderV4):
         if data_fim is not None:
             df = df[df['Data'] <= pd.Timestamp(data_fim)]
 
-        # Calcular dias do período
+        # Calcular dias do período e datas
         if not df.empty and 'Data' in df.columns:
-            dias_periodo = (df['Data'].max() - df['Data'].min()).days + 1
+            data_min = df['Data'].min().to_pydatetime()
+            data_max = df['Data'].max().to_pydatetime()
+            dias_periodo = (data_max - data_min).days + 1
         else:
+            data_min = datetime.now().replace(day=1)
+            data_max = datetime.now()
             dias_periodo = 30
 
-        # Calcular métricas
-        metricas = self.cost_manager.calcular_metricas_financeiras(df, dias_periodo)
+        # Calcular métricas (com datas para integração Despesify)
+        metricas = self.cost_manager.calcular_metricas_financeiras(df, data_min, data_max)
 
         # Adicionar informações extras
         metricas['num_transacoes'] = len(df)
@@ -357,13 +362,18 @@ class DataLoaderV5(DataLoaderV4):
         if df_atual.empty or df_anterior.empty:
             return {}
 
-        # Calcular dias
-        dias_atual = (df_atual['Data'].max() - df_atual['Data'].min()).days + 1
-        dias_anterior = (df_anterior['Data'].max() - df_anterior['Data'].min()).days + 1
+        # Calcular datas e dias
+        data_min_atual = df_atual['Data'].min().to_pydatetime()
+        data_max_atual = df_atual['Data'].max().to_pydatetime()
+        data_min_anterior = df_anterior['Data'].min().to_pydatetime()
+        data_max_anterior = df_anterior['Data'].max().to_pydatetime()
 
-        # Métricas dos dois períodos
-        metricas_atual = self.cost_manager.calcular_metricas_financeiras(df_atual, dias_atual)
-        metricas_anterior = self.cost_manager.calcular_metricas_financeiras(df_anterior, dias_anterior)
+        dias_atual = (data_max_atual - data_min_atual).days + 1
+        dias_anterior = (data_max_anterior - data_min_anterior).days + 1
+
+        # Métricas dos dois períodos (com datas para Despesify)
+        metricas_atual = self.cost_manager.calcular_metricas_financeiras(df_atual, data_min_atual, data_max_atual)
+        metricas_anterior = self.cost_manager.calcular_metricas_financeiras(df_anterior, data_min_anterior, data_max_anterior)
 
         # Calcular variações
         comparacao = {}

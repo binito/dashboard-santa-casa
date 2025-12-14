@@ -1,19 +1,16 @@
 Categoria,Subcategoria,Valor_Mensal,Tipo,Notas
-Instalações,Renda,500.00,Fixo,Renda do espaço comercial
-RH,Ordenado Funcionário,990.00,Fixo,Salário base mensal
+Instalações,Renda,500.0,Fixo,Renda do espaço comercial
+RH,Ordenado Funcionário,990.0,Fixo,Salário base mensal
 RH,Segurança Social,352.71,Fixo,23.75% do salário (1000 x 23.75%)
-RH,Subsídio Alimentação,0.00,Fixo,6€/dia x 20 dias úteis
-Serviços,Contabilista,175.00,Fixo,Mensalidade contabilidade
-Serviços,Eletricidade,150.00,Variável,Média mensal estimada
-Serviços,Água,60.00,Variável,Média mensal estimada
-Serviços,Internet/Telefone,37.00,Fixo,Mensalidade comunicações
-Impostos,IVA,0.00,Calculado,13% ou 23% sobre vendas (calculado)
-Impostos,Segurança Social Patronal,0.00,Calculado,Incluído em RH
-Impostos,IRC,0.00,Calculado,% do lucro anual
-Manutenção,Equipamentos,20.00,Variável,Manutenção e reparações
-Manutenção,Limpeza,200.00,Variável,Produtos de limpeza
-Fornecimentos,Descartáveis,80.00,Variável,Copos papel guardanapos etc
-Fornecimentos,Gás,0.00,Variável,Botijas de gás
-Outros,Seguros,10.00,Fixo,Seguro do estabelecimento
-Outros,Licenças,10.00,Fixo,Taxas e licenças (média mensal)
-Outros,Diversos,10.00,Variável,Despesas várias
+RH,Subsídio Alimentação,0.0,Fixo,6€/dia x 20 dias úteis
+Serviços,Contabilista,175.0,Fixo,Mensalidade contabilidade
+Serviços,Eletricidade,150.0,Variável,Média mensal estimada
+Serviços,Água,60.0,Variável,Média mensal estimada
+Serviços,Internet/Telefone,37.0,Fixo,Mensalidade comunicações
+Manutenção,Equipamentos,20.0,Variável,Manutenção e reparações
+Manutenção,Limpeza,200.0,Variável,Produtos de limpeza
+Fornecimentos,Descartáveis,80.0,Variável,Copos papel guardanapos etc
+Fornecimentos,Gás,0.0,Variável,Botijas de gás
+Outros,Seguros,10.0,Fixo,Seguro do estabelecimento
+Outros,Licenças,10.0,Fixo,Taxas e licenças (média mensal)
+Outros,Diversos,10.0,Variável,Despesas várias

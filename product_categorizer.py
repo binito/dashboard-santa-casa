@@ -183,6 +183,8 @@ class ProductCategorizer:
         """
         Adiciona colunas de categoria e subcategoria a um DataFrame
 
+        OTIMIZADO: Usa vectorização para performance máxima
+
         Args:
             df: DataFrame com produtos
             coluna_produto: Nome da coluna com produtos
@@ -199,28 +201,44 @@ class ProductCategorizer:
 
         tem_familia = coluna_familia in df.columns
 
-        # Aplicar categorização
-        if tem_familia:
-            resultados = df.apply(
-                lambda row: self.categorizar_produto(row[coluna_produto], row[coluna_familia]),
-                axis=1
-            )
-        else:
-            resultados = df[coluna_produto].apply(
-                lambda x: self.categorizar_produto(x)
-            )
+        # OTIMIZAÇÃO: Criar lookup de produtos únicos (muito mais rápido!)
+        produtos_unicos = df[coluna_produto].unique()
 
-        # Adicionar colunas
-        df['Categoria'] = resultados.apply(lambda x: x[0])
-        df['Subcategoria'] = resultados.apply(lambda x: x[1])
+        # Categorizar apenas produtos únicos
+        categorias_map = {}
+        subcategorias_map = {}
 
-        # Adicionar cores e ícones
-        df['Cor_Categoria'] = df['Categoria'].map(
-            lambda x: self.CATEGORIAS.get(x, {}).get('cor', '#808080')
-        )
-        df['Icone_Categoria'] = df['Categoria'].map(
-            lambda x: self.CATEGORIAS.get(x, {}).get('icone', '📦')
-        )
+        for produto in produtos_unicos:
+            if pd.isna(produto):
+                categorias_map[produto] = 'OUTROS'
+                subcategorias_map[produto] = 'Diversos'
+            else:
+                familia = None
+                if tem_familia:
+                    # Pegar primeira família associada ao produto (para cache)
+                    mask = df[coluna_produto] == produto
+                    familias = df.loc[mask, coluna_familia].dropna()
+                    if len(familias) > 0:
+                        familia = familias.iloc[0]
+
+                cat, subcat = self.categorizar_produto(produto, familia)
+                categorias_map[produto] = cat
+                subcategorias_map[produto] = subcat
+
+        # Mapear de volta para o DataFrame (vectorizado - muito rápido!)
+        df['Categoria'] = df[coluna_produto].map(categorias_map)
+        df['Subcategoria'] = df[coluna_produto].map(subcategorias_map)
+
+        # Preencher valores nulos
+        df['Categoria'] = df['Categoria'].fillna('OUTROS')
+        df['Subcategoria'] = df['Subcategoria'].fillna('Diversos')
+
+        # Criar mapas de cores e ícones (vectorizado)
+        cores_map = {cat: info.get('cor', '#808080') for cat, info in self.CATEGORIAS.items()}
+        icones_map = {cat: info.get('icone', '📦') for cat, info in self.CATEGORIAS.items()}
+
+        df['Cor_Categoria'] = df['Categoria'].map(cores_map).fillna('#808080')
+        df['Icone_Categoria'] = df['Categoria'].map(icones_map).fillna('📦')
 
         return df
 

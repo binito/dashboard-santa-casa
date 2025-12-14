@@ -370,15 +370,23 @@ class CostManager:
 
         return resumo
 
-    def calcular_break_even(self, margem_contribuicao_media: float) -> Dict:
+    def calcular_break_even(self, margem_contribuicao_media: float, iva_medio: float = 18.0, margem_seguranca_pct: float = 15.0) -> Dict:
         """
-        Calcula o ponto de equilíbrio (break-even)
+        Calcula o ponto de equilíbrio (break-even) realista
+
+        Considera:
+        - Custos operacionais (incluindo ordenado)
+        - IVA médio a pagar
+        - Margem de segurança
+        - Objetivo de lucro mínimo (lucro líquido positivo)
 
         Args:
             margem_contribuicao_media: Margem de contribuição média (em %)
+            iva_medio: Taxa média de IVA aplicável (padrão 18%)
+            margem_seguranca_pct: Margem de segurança desejada (padrão 15%)
 
         Returns:
-            Dicionário com informações de break-even
+            Dicionário com informações de break-even realista
         """
         custos_fixos_mensais = self.get_custos_operacionais_mensais()
 
@@ -391,16 +399,65 @@ class CostManager:
                 'erro': 'Margem de contribuição deve ser positiva'
             }
 
-        # Vendas necessárias para break-even
-        vendas_break_even = custos_fixos_mensais / (margem_contribuicao_media / 100)
-        vendas_diarias = vendas_break_even / 30
+        # ===== BREAK-EVEN SIMPLES =====
+        # Vendas necessárias apenas para cobrir custos operacionais
+        vendas_break_even_simples = custos_fixos_mensais / (margem_contribuicao_media / 100)
+
+        # ===== BREAK-EVEN COM IVA =====
+        # O IVA é um passivo (precisa pagar), não faz parte da margem de contribuição
+        # Portanto, precisa de vendas adicionais para cobrir o IVA
+        iva_pct_efetivo = iva_medio / 100
+
+        # Fórmula: Vendas = Custos / (Margem - IVA%)
+        # Onde a margem de contribuição é reduzida pelo IVA
+        margem_efetiva = (margem_contribuicao_media / 100) - iva_pct_efetivo
+
+        if margem_efetiva <= 0:
+            # Se a margem efetiva é negativa ou zero, não é possível cobrir custos
+            vendas_break_even_com_iva = float('inf')
+        else:
+            vendas_break_even_com_iva = custos_fixos_mensais / margem_efetiva
+
+        # ===== BREAK-EVEN COM MARGEM DE SEGURANÇA =====
+        # Adiciona margem de segurança ao break-even com IVA
+        vendas_break_even_realista = vendas_break_even_com_iva * (1 + margem_seguranca_pct / 100)
+
+        # ===== CÁLCULOS DIÁRIOS =====
+        vendas_diarias_simples = vendas_break_even_simples / 30
+        vendas_diarias_com_iva = vendas_break_even_com_iva / 30 if vendas_break_even_com_iva != float('inf') else float('inf')
+        vendas_diarias_realista = vendas_break_even_realista / 30 if vendas_break_even_realista != float('inf') else float('inf')
+
+        # ===== IVA ESTIMADO =====
+        iva_mensal_estimado = vendas_break_even_realista * iva_pct_efetivo
+
+        # ===== LUCRO MÍNIMO ESPERADO =====
+        # Após cobrir tudo (custos + IVA + margem de segurança), qual é o lucro?
+        lucro_minimo = (vendas_break_even_realista * (margem_contribuicao_media / 100)) - custos_fixos_mensais - iva_mensal_estimado
 
         return {
+            # Dados base
             'custos_fixos_mensais': custos_fixos_mensais,
             'margem_contribuicao_pct': margem_contribuicao_media,
-            'vendas_break_even_mensal': vendas_break_even,
-            'vendas_break_even_diaria': vendas_diarias,
-            'custos_fixos_diarios': custos_fixos_mensais / 30
+            'iva_medio_pct': iva_medio,
+            'margem_seguranca_pct': margem_seguranca_pct,
+
+            # Break-even simples (apenas custos operacionais)
+            'vendas_break_even_mensal_simples': vendas_break_even_simples,
+            'vendas_break_even_diaria_simples': vendas_diarias_simples,
+
+            # Break-even com IVA
+            'vendas_break_even_mensal_com_iva': vendas_break_even_com_iva if vendas_break_even_com_iva != float('inf') else 0,
+            'vendas_break_even_diaria_com_iva': vendas_diarias_com_iva if vendas_diarias_com_iva != float('inf') else 0,
+
+            # Break-even REALISTA (com IVA + margem de segurança)
+            'vendas_break_even_mensal': vendas_break_even_realista if vendas_break_even_realista != float('inf') else 0,
+            'vendas_break_even_diaria': vendas_diarias_realista if vendas_diarias_realista != float('inf') else 0,
+            'custos_fixos_diarios': custos_fixos_mensais / 30,
+
+            # Detalhes do cálculo
+            'iva_mensal_estimado': iva_mensal_estimado,
+            'margem_efetiva_apos_iva': margem_efetiva * 100,
+            'lucro_minimo_esperado': lucro_minimo
         }
 
     def analisar_rentabilidade_produtos(self, df_vendas: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:

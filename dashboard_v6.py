@@ -1,6 +1,6 @@
 """
-Dashboard Profissional v5 - Análise Completa com Gestão de Custos
-Sistema avançado de análise de vendas, custos e rentabilidade
+Dashboard Profissional v6 - Análise Completa com Gestão de Custos + Jogos Santa Casa
+Sistema avançado de análise de vendas, custos, rentabilidade e análise de jogos
 """
 
 import streamlit as st
@@ -25,8 +25,8 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard v5 - Café Martins (Custos & Rentabilidade)",
-    page_icon="💰",
+    page_title="Dashboard v6 - Café Martins (Custos, Rentabilidade & Jogos)",
+    page_icon="🎰",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -213,8 +213,8 @@ def formatar_percentagem(valor):
 
 
 def calcular_delta(atual, anterior):
-    """Calcula variação percentual"""
-    if anterior == 0:
+    """Calcula variação percentual - retorna 0 se anterior é 0 ou None"""
+    if anterior is None or anterior == 0:
         return 0
     return ((atual - anterior) / anterior) * 100
 
@@ -260,6 +260,110 @@ def calcular_metricas_periodo(df, periodo_dias):
         'media_diaria': df_periodo.groupby('Data')['Valor'].sum().mean(),
         'quantidade': df_periodo['Qtd'].sum() if 'Qtd' in df_periodo.columns else 0,
         'vendas': len(df_periodo)
+    }
+
+
+def calcular_metricas_performance(df_filtrado, df_completo=None):
+    """
+    Calcula métricas de performance semanal, mensal e anual com comparações
+    Funciona corretamente mesmo com períodos filtrados
+
+    Args:
+        df_filtrado: DataFrame com dados filtrados (período selecionado)
+        df_completo: DataFrame com todos os dados (para comparações históricas)
+
+    Returns:
+        dict com métricas de performance
+    """
+    if df_filtrado.empty:
+        return {}
+
+    # Se não houver dataframe completo, usar o filtrado
+    df_comparacao = df_completo if df_completo is not None else df_filtrado
+
+    data_hoje = df_filtrado['Data'].max()
+
+    # ========== PERFORMANCE SEMANAL ==========
+    # Última semana (últimos 7 dias) - usar dados filtrados
+    data_inicio_semana_atual = data_hoje - timedelta(days=6)
+    df_semana_atual = df_filtrado[df_filtrado['Data'] >= data_inicio_semana_atual]
+    vendas_semana_atual = df_semana_atual['Valor'].sum()
+
+    # Semana anterior (7 dias antes) - usar dados completos
+    data_fim_semana_anterior = data_inicio_semana_atual - timedelta(days=1)
+    data_inicio_semana_anterior = data_fim_semana_anterior - timedelta(days=6)
+    df_semana_anterior = df_comparacao[(df_comparacao['Data'] >= data_inicio_semana_anterior) & (df_comparacao['Data'] <= data_fim_semana_anterior)]
+    vendas_semana_anterior = df_semana_anterior['Valor'].sum() if not df_semana_anterior.empty else None
+    var_semana_vs_anterior = calcular_delta(vendas_semana_atual, vendas_semana_anterior) if vendas_semana_anterior is not None else 0
+
+    # Mesma semana ano passado - usar dados completos
+    data_inicio_semana_ano_passado = data_inicio_semana_atual - timedelta(days=365)
+    data_fim_semana_ano_passado = data_hoje - timedelta(days=365)
+    df_semana_ano_passado = df_comparacao[(df_comparacao['Data'] >= data_inicio_semana_ano_passado) & (df_comparacao['Data'] <= data_fim_semana_ano_passado)]
+    vendas_semana_ano_passado = df_semana_ano_passado['Valor'].sum() if not df_semana_ano_passado.empty else None
+    var_semana_vs_ano_passado = calcular_delta(vendas_semana_atual, vendas_semana_ano_passado) if vendas_semana_ano_passado is not None else 0
+
+    # ========== PERFORMANCE MENSAL (MTD - Month To Date) ==========
+    # Mês em curso (até hoje) - usar dados filtrados
+    primeiro_dia_mes = data_hoje.replace(day=1)
+    df_mes_atual = df_filtrado[df_filtrado['Data'] >= primeiro_dia_mes]
+    vendas_mes_atual = df_mes_atual['Valor'].sum()
+    dias_mes_atual = (data_hoje - primeiro_dia_mes).days + 1
+
+    # Mês anterior (mesmos dias) - usar dados completos
+    ultimo_dia_mes_anterior = primeiro_dia_mes - timedelta(days=1)
+    data_inicio_mes_anterior = ultimo_dia_mes_anterior.replace(day=1)
+    data_fim_mes_anterior = data_inicio_mes_anterior + timedelta(days=dias_mes_atual - 1)
+    df_mes_anterior = df_comparacao[(df_comparacao['Data'] >= data_inicio_mes_anterior) & (df_comparacao['Data'] <= data_fim_mes_anterior)]
+    vendas_mes_anterior = df_mes_anterior['Valor'].sum() if not df_mes_anterior.empty else None
+    var_mes_vs_anterior = calcular_delta(vendas_mes_atual, vendas_mes_anterior) if vendas_mes_anterior is not None else 0
+
+    # Mesmo mês ano passado (até o mesmo dia) - usar dados completos
+    data_inicio_smly = primeiro_dia_mes - timedelta(days=365)
+    data_fim_smly = primeiro_dia_mes + timedelta(days=dias_mes_atual - 1) - timedelta(days=365)
+    df_smly = df_comparacao[(df_comparacao['Data'] >= data_inicio_smly) & (df_comparacao['Data'] <= data_fim_smly)]
+    vendas_smly = df_smly['Valor'].sum() if not df_smly.empty else None
+    var_mes_vs_ano_passado = calcular_delta(vendas_mes_atual, vendas_smly) if vendas_smly is not None else 0
+
+    # ========== PERFORMANCE ANUAL (YTD - Year To Date) ==========
+    # Ano em curso (até hoje) - usar dados COMPLETOS para YTD correto
+    primeiro_dia_ano = data_hoje.replace(month=1, day=1)
+    df_ano_atual = df_comparacao[df_comparacao['Data'] >= primeiro_dia_ano]
+    vendas_ano_atual = df_ano_atual['Valor'].sum()
+
+    # Ano anterior (até mesma data) - usar dados completos
+    data_ytd_ano_anterior = data_hoje - timedelta(days=365)
+    primeiro_dia_ano_anterior = data_ytd_ano_anterior.replace(month=1, day=1)
+    df_ano_anterior_ytd = df_comparacao[(df_comparacao['Data'] >= primeiro_dia_ano_anterior) & (df_comparacao['Data'] <= data_ytd_ano_anterior)]
+    vendas_ano_anterior_ytd = df_ano_anterior_ytd['Valor'].sum() if not df_ano_anterior_ytd.empty else None
+    var_ano_vs_ano_anterior = calcular_delta(vendas_ano_atual, vendas_ano_anterior_ytd) if vendas_ano_anterior_ytd is not None else 0
+
+    # Total ano anterior (completo) - usar dados completos
+    data_inicio_ano_anterior_total = primeiro_dia_ano_anterior
+    data_fim_ano_anterior_total = data_ytd_ano_anterior.replace(month=12, day=31)
+    df_ano_anterior_total = df_comparacao[(df_comparacao['Data'] >= data_inicio_ano_anterior_total) & (df_comparacao['Data'] <= data_fim_ano_anterior_total)]
+    vendas_ano_anterior_total = df_ano_anterior_total['Valor'].sum() if not df_ano_anterior_total.empty else None
+
+    return {
+        'data_atualizacao': data_hoje.strftime('%d/%m/%Y'),
+        # Semanal
+        'vendas_semana_atual': vendas_semana_atual,
+        'vendas_semana_anterior': vendas_semana_anterior if vendas_semana_anterior is not None else 0,
+        'vendas_semana_ano_passado': vendas_semana_ano_passado if vendas_semana_ano_passado is not None else 0,
+        'var_semana_vs_anterior': var_semana_vs_anterior,
+        'var_semana_vs_ano_passado': var_semana_vs_ano_passado,
+        # Mensal
+        'vendas_mes_atual': vendas_mes_atual,
+        'vendas_mes_anterior': vendas_mes_anterior if vendas_mes_anterior is not None else 0,
+        'vendas_smly': vendas_smly if vendas_smly is not None else 0,
+        'var_mes_vs_anterior': var_mes_vs_anterior,
+        'var_mes_vs_ano_passado': var_mes_vs_ano_passado,
+        'dias_mes_atual': dias_mes_atual,
+        # Anual
+        'vendas_ano_atual': vendas_ano_atual,
+        'vendas_ano_anterior_ytd': vendas_ano_anterior_ytd if vendas_ano_anterior_ytd is not None else 0,
+        'vendas_ano_anterior_total': vendas_ano_anterior_total if vendas_ano_anterior_total is not None else 0,
+        'var_ano_vs_ano_anterior': var_ano_vs_ano_anterior,
     }
 
 
@@ -671,11 +775,661 @@ def gerar_relatorio_excel_avancado(df_filtrado, data_inicio, data_fim, categoria
     return output
 
 
+# ============= FUNÇÕES PARA JOGOS SANTA CASA =============
+
+@st.cache_data(ttl=1800)
+def carregar_dados_santa_casa():
+    """Carrega dados dos Jogos Santa Casa - cache de 30 minutos"""
+    data_file = Path('/home/jorge/Documentos/Santa casa/dados/dados.csv')
+
+    if not data_file.exists():
+        st.error(f"Arquivo não encontrado: {data_file}")
+        return None
+
+    try:
+        df = pd.read_csv(data_file, sep=';', encoding='utf-8')
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return None
+
+    # Converter Data para datetime
+    df['Data'] = pd.to_datetime(df['Data'], format='%d-%m-%Y', errors='coerce')
+
+    # Remover linhas de PRESTAÇÃO DE CONTAS dos dados principais
+    df = df[df['Categoria'] != 'PRESTAÇÃO DE CONTAS'].copy()
+
+    # Converter colunas numéricas (otimizado para velocidade)
+    numeric_cols = ['Qt Maços', 'Vendas ilíquidas (€)', 'Remunerações (€)', 'Prémios (€)', 'Valor (€)']
+    for col in numeric_cols:
+        if col in df.columns:
+            def converter_numero(val):
+                val_str = str(val).strip()
+                if ',' in val_str:
+                    # Formato europeu: 1.234,56 -> remove pontos, troca vírgula por ponto
+                    val_str = val_str.replace('.', '').replace(',', '.')
+                # Senão, mantém como está (formato 171.00 já está correto)
+                try:
+                    return float(val_str) if val_str else 0.0
+                except:
+                    return 0.0
+
+            df[col] = df[col].apply(converter_numero)
+
+    # Adicionar colunas temporais
+    df['Ano'] = df['Data'].dt.year
+    df['Mes'] = df['Data'].dt.month
+    df['Ano_Mes'] = df['Data'].dt.to_period('M').astype(str)
+
+    # Ordenar por data
+    df = df.sort_values('Data')
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def carregar_objetivos():
+    """Carrega objetivos semanais do CSV (cacheado por 1 hora)."""
+    objetivos_file = Path('/home/jorge/Documentos/Streamlit/objetivos_semanais.csv')
+
+    if not objetivos_file.exists():
+        # Criar arquivo padrão se não existir
+        df_objetivos = pd.DataFrame({
+            'Jogo': [],
+            'Objetivo': []
+        })
+        df_objetivos.to_csv(objetivos_file, sep=';', index=False)
+        return {}
+
+    try:
+        df_objetivos = pd.read_csv(objetivos_file, sep=';')
+        return dict(zip(df_objetivos['Jogo'], df_objetivos['Objetivo']))
+    except Exception as e:
+        st.warning(f"Erro ao carregar objetivos: {e}")
+        return {}
+
+
+def guardar_objetivos(objetivos_dict):
+    """Guarda objetivos semanais em CSV."""
+    objetivos_file = Path('/home/jorge/Documentos/Streamlit/objetivos_semanais.csv')
+
+    df_objetivos = pd.DataFrame({
+        'Jogo': list(objetivos_dict.keys()),
+        'Objetivo': list(objetivos_dict.values())
+    })
+
+    try:
+        df_objetivos.to_csv(objetivos_file, sep=';', index=False)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao guardar objetivos: {e}")
+        return False
+
+
+def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
+    """Página de análise dos Jogos Santa Casa"""
+    if df is None or len(df) == 0:
+        st.error("Dados não carregados")
+        return
+
+    # Filtrar dados pela data se fornecida
+    df_filtrado = df.copy()
+    if data_inicio is not None and data_fim is not None:
+        df_filtrado = df_filtrado[
+            (pd.to_datetime(df_filtrado['Data']).dt.date >= data_inicio) &
+            (pd.to_datetime(df_filtrado['Data']).dt.date <= data_fim)
+        ]
+
+    st.markdown('<h2 style="text-align: center; color: #1f77b4;">🎰 Análise de Jogos - Santa Casa</h2>',
+                unsafe_allow_html=True)
+    st.caption("📊 Análise de vendas ilíquidas semanais dos Jogos Santa Casa")
+
+    # KPIs principais
+    col1, col2, col3, col4 = st.columns(4)
+
+    total_vendas = df_filtrado['Vendas ilíquidas (€)'].sum()
+    total_remuneracoes = df_filtrado['Remunerações (€)'].sum()
+    total_premios = df_filtrado['Prémios (€)'].sum()
+    num_jogos = df_filtrado['Jogo'].nunique()
+
+    with col1:
+        st.metric("Total Vendas Ilíquidas", f"€{total_vendas:,.0f}")
+    with col2:
+        st.metric("Total Remunerações", f"€{total_remuneracoes:,.0f}")
+    with col3:
+        st.metric("Total Prémios", f"€{total_premios:,.0f}")
+    with col4:
+        st.metric("Nº de Jogos", num_jogos)
+
+    st.divider()
+
+    # Tabs para análises
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "📈 Evolução Temporal",
+        "🎮 Por Jogo",
+        "🎰 Por Categoria",
+        "📊 Comparação Semanal",
+        "📈 MoM (Mês a Mês)",
+        "📅 YoY (Ano a Ano)",
+        "📆 Semana a Semana",
+        "🔮 Previsão"
+    ])
+
+    with tab1:
+        st.subheader("Evolução de Vendas ao Longo do Tempo")
+
+        # Dados semanais
+        vendas_semanal = df_filtrado.groupby('Data').agg({
+            'Vendas ilíquidas (€)': 'sum',
+            'Remunerações (€)': 'sum',
+            'Prémios (€)': 'sum'
+        }).reset_index()
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=vendas_semanal['Data'],
+            y=vendas_semanal['Vendas ilíquidas (€)'],
+            name='Vendas Ilíquidas',
+            mode='lines+markers',
+            line=dict(color='#1f77b4', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(31, 119, 180, 0.2)'
+        ))
+
+        fig.update_layout(
+            title="Evolução de Vendas Ilíquidas por Semana",
+            xaxis_title="Data (Semana)",
+            yaxis_title="Vendas (€)",
+            hovermode='x unified',
+            height=500
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Estatísticas
+        st.markdown("#### 📊 Estatísticas Semanais")
+        stats = {
+            'Semana com Maior Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].max():,.0f}",
+            'Semana com Menor Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].min():,.0f}",
+            'Média Semanal': f"€{vendas_semanal['Vendas ilíquidas (€)'].mean():,.0f}",
+            'Desvio Padrão': f"€{vendas_semanal['Vendas ilíquidas (€)'].std():,.0f}"
+        }
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Máximo", stats['Semana com Maior Vendas'])
+        with col2:
+            st.metric("Mínimo", stats['Semana com Menor Vendas'])
+        with col3:
+            st.metric("Média", stats['Média Semanal'])
+        with col4:
+            st.metric("Desvio", stats['Desvio Padrão'])
+
+    with tab2:
+        st.subheader("Análise por Jogo")
+
+        # Top Jogos
+        vendas_jogo = df_filtrado.groupby('Jogo').agg({
+            'Vendas ilíquidas (€)': ['sum', 'mean', 'count'],
+            'Data': 'nunique'
+        }).reset_index()
+
+        vendas_jogo.columns = ['Jogo', 'Total Vendas', 'Média Semanal', 'Nº Transações', 'Semanas Ativas']
+        vendas_jogo = vendas_jogo.sort_values('Total Vendas', ascending=False)
+
+        # Gráfico Top 15 Jogos
+        top_jogos = vendas_jogo.head(15)
+
+        fig = px.bar(
+            top_jogos,
+            x='Jogo',
+            y='Total Vendas',
+            title='Top 15 Jogos - Vendas Ilíquidas Totais',
+            labels={'Total Vendas': 'Vendas (€)', 'Jogo': 'Jogo'},
+            height=500
+        )
+
+        fig.update_traces(
+            text=top_jogos['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
+            textposition='outside'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Tabela detalhada
+        st.markdown("#### 📋 Resumo Completo por Jogo")
+        vendas_jogo_display = vendas_jogo.copy()
+        vendas_jogo_display['Total Vendas'] = vendas_jogo_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
+        vendas_jogo_display['Média Semanal'] = vendas_jogo_display['Média Semanal'].apply(lambda x: f'€{x:,.0f}')
+        st.dataframe(vendas_jogo_display, use_container_width=True, hide_index=True)
+
+    with tab3:
+        st.subheader("Análise por Categoria")
+
+        # Vendas por categoria
+        vendas_cat = df_filtrado.groupby('Categoria').agg({
+            'Vendas ilíquidas (€)': 'sum',
+            'Jogo': 'nunique'
+        }).reset_index()
+
+        vendas_cat.columns = ['Categoria', 'Total Vendas', 'Nº Jogos']
+        vendas_cat = vendas_cat.sort_values('Total Vendas', ascending=False)
+
+        # Gráfico de pizza
+        fig_pizza = px.pie(
+            vendas_cat,
+            values='Total Vendas',
+            names='Categoria',
+            title='Distribuição de Vendas por Categoria',
+            height=500
+        )
+
+        st.plotly_chart(fig_pizza, use_container_width=True)
+
+        # Gráfico de barras
+        fig_barras = px.bar(
+            vendas_cat,
+            x='Categoria',
+            y='Total Vendas',
+            title='Vendas por Categoria',
+            labels={'Total Vendas': 'Vendas (€)', 'Categoria': 'Categoria'},
+            height=400
+        )
+
+        fig_barras.update_traces(
+            text=vendas_cat['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
+            textposition='outside'
+        )
+
+        st.plotly_chart(fig_barras, use_container_width=True)
+
+        # Tabela
+        st.markdown("#### 📊 Detalhes por Categoria")
+        vendas_cat_display = vendas_cat.copy()
+        vendas_cat_display['Total Vendas'] = vendas_cat_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
+        st.dataframe(vendas_cat_display, use_container_width=True, hide_index=True)
+
+    with tab4:
+        st.subheader("Comparação Semanal de Top Jogos")
+
+        # Selecionar top 5 jogos
+        top_5_jogos = df_filtrado.groupby('Jogo')['Vendas ilíquidas (€)'].sum().nlargest(5).index.tolist()
+
+        # Dados semanais por jogo
+        df_top = df_filtrado[df_filtrado['Jogo'].isin(top_5_jogos)]
+        vendas_semana_jogo = df_top.groupby(['Data', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+
+        fig = px.line(
+            vendas_semana_jogo,
+            x='Data',
+            y='Vendas ilíquidas (€)',
+            color='Jogo',
+            title='Evolução Semanal - Top 5 Jogos',
+            markers=True,
+            height=500
+        )
+
+        fig.update_layout(
+            xaxis_title="Semana",
+            yaxis_title="Vendas (€)",
+            hovermode='x unified'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Tabela de comparação
+        st.markdown("#### 📊 Tabela Comparativa Semanal")
+        pivot_vendas = vendas_semana_jogo.pivot(index='Data', columns='Jogo', values='Vendas ilíquidas (€)').fillna(0)
+        pivot_vendas = pivot_vendas.applymap(lambda x: f'€{x:,.0f}' if x > 0 else '-')
+        st.dataframe(pivot_vendas, use_container_width=True)
+
+    with tab5:
+        st.subheader("📈 Análise Mês a Mês (MoM)")
+
+        # Preparar dados mensais
+        df_mes = df_filtrado.copy()
+        df_mes['Ano_Mes'] = df_mes['Data'].dt.to_period('M').astype(str)
+        vendas_mes = df_mes.groupby(['Ano_Mes', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+
+        # Seletor de jogos para análise
+        jogos_disponiveis = sorted(vendas_mes['Jogo'].unique())
+        jogos_selecionados = st.multiselect(
+            "🎮 Selecione os jogos para visualizar (deixe em branco para ver todos):",
+            options=jogos_disponiveis,
+            default=jogos_disponiveis[:5] if len(jogos_disponiveis) > 5 else jogos_disponiveis
+        )
+
+        if not jogos_selecionados:
+            jogos_selecionados = jogos_disponiveis
+
+        vendas_mes_filtrado = vendas_mes[vendas_mes['Jogo'].isin(jogos_selecionados)]
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            fig = px.line(
+                vendas_mes_filtrado,
+                x='Ano_Mes',
+                y='Vendas ilíquidas (€)',
+                color='Jogo',
+                title=f'Vendas Mensais por Jogo ({len(jogos_selecionados)} selecionados)',
+                markers=True,
+                height=450
+            )
+            fig.update_layout(hovermode='x unified', xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            # Crescimento MoM %
+            vendas_mes_filtrado = vendas_mes_filtrado.copy()
+            vendas_mes_filtrado['Vendas_Anterior'] = vendas_mes_filtrado.groupby('Jogo')['Vendas ilíquidas (€)'].shift(1)
+            vendas_mes_filtrado['Crescimento_MoM'] = ((vendas_mes_filtrado['Vendas ilíquidas (€)'] - vendas_mes_filtrado['Vendas_Anterior']) /
+                                              vendas_mes_filtrado['Vendas_Anterior'] * 100).fillna(0)
+
+            fig = px.bar(
+                vendas_mes_filtrado,
+                x='Ano_Mes',
+                y='Crescimento_MoM',
+                color='Jogo',
+                title='Crescimento MoM (%)',
+                barmode='group',
+                height=450
+            )
+            fig.add_hline(y=0, line_dash="dash", line_color="gray")
+            fig.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Tabela resumida de MoM
+        st.markdown("#### 📊 Tabela Resumida - Crescimento Mês a Mês")
+        tabela_mom = vendas_mes_filtrado[['Jogo', 'Ano_Mes', 'Vendas ilíquidas (€)', 'Crescimento_MoM']].copy()
+        tabela_mom = tabela_mom.sort_values(['Jogo', 'Ano_Mes'])
+        tabela_mom['Vendas ilíquidas (€)'] = tabela_mom['Vendas ilíquidas (€)'].apply(lambda x: f'€{x:,.0f}')
+        tabela_mom['Crescimento_MoM'] = tabela_mom['Crescimento_MoM'].apply(lambda x: f'{x:+.1f}%')
+        tabela_mom.columns = ['Jogo', 'Mês', 'Vendas', 'Crescimento %']
+        st.dataframe(tabela_mom, use_container_width=True, hide_index=True)
+
+    with tab6:
+        st.subheader("📅 Análise Ano a Ano (YoY)")
+
+        # Preparar dados por mês do ano
+        df_yoy = df_filtrado.copy()
+        df_yoy['Mes'] = df_yoy['Data'].dt.month
+        df_yoy['Ano'] = df_yoy['Data'].dt.year
+        vendas_yoy = df_yoy.groupby(['Ano', 'Mes', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+        vendas_yoy['Mes_Nome'] = pd.to_datetime(vendas_yoy['Mes'].astype(str), format='%m').dt.strftime('%b')
+
+        # Seletor de jogo para análise YoY
+        jogos_yoy = sorted(vendas_yoy['Jogo'].unique())
+        jogo_selecionado_yoy = st.selectbox(
+            "🎮 Selecione um jogo para análise YoY:",
+            options=jogos_yoy,
+            key="yoy_jogo"
+        )
+
+        vendas_yoy_jogo = vendas_yoy[vendas_yoy['Jogo'] == jogo_selecionado_yoy]
+
+        # Gráfico principal
+        fig_yoy = px.line(
+            vendas_yoy_jogo,
+            x='Mes',
+            y='Vendas ilíquidas (€)',
+            color='Ano',
+            title=f'Evolução Mensal - {jogo_selecionado_yoy} (Comparação Anual)',
+            markers=True,
+            height=450,
+            labels={'Mes': 'Mês', 'Vendas ilíquidas (€)': 'Vendas (€)'}
+        )
+        fig_yoy.update_layout(hovermode='x unified', xaxis_title="Mês do Ano")
+        st.plotly_chart(fig_yoy, use_container_width=True)
+
+        # Tabela comparativa
+        st.markdown(f"#### 📊 Tabela Comparativa - {jogo_selecionado_yoy}")
+        tabela_yoy = vendas_yoy_jogo.pivot_table(
+            index='Mes_Nome',
+            columns='Ano',
+            values='Vendas ilíquidas (€)',
+            aggfunc='sum'
+        ).fillna(0)
+
+        # Adicionar coluna de variação
+        anos_unicos = sorted(vendas_yoy_jogo['Ano'].unique())
+        if len(anos_unicos) >= 2:
+            ano_atual = anos_unicos[-1]
+            ano_anterior = anos_unicos[-2]
+            if ano_atual in tabela_yoy.columns and ano_anterior in tabela_yoy.columns:
+                tabela_yoy['Variação %'] = ((tabela_yoy[ano_atual] - tabela_yoy[ano_anterior]) /
+                                            tabela_yoy[ano_anterior] * 100).fillna(0)
+
+        # Formatar valores
+        for col in tabela_yoy.columns:
+            if col != 'Variação %':
+                tabela_yoy[col] = tabela_yoy[col].apply(lambda x: f'€{x:,.0f}')
+        tabela_yoy['Variação %'] = tabela_yoy.get('Variação %', pd.Series()).apply(lambda x: f'{x:+.1f}%' if isinstance(x, (int, float)) else x)
+
+        st.dataframe(tabela_yoy, use_container_width=True)
+
+    with tab7:
+        st.subheader("📆 Análise Semana a Semana")
+
+        # Preparar dados semanais
+        df_semana = df.copy()
+        vendas_semana = df_semana.groupby(['Data', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+        vendas_semana = vendas_semana.sort_values('Data')
+
+        # Opções de visualização
+        col_opts1, col_opts2 = st.columns(2)
+        with col_opts1:
+            tipo_viz = st.radio(
+                "📊 Tipo de Visualização:",
+                options=["Todos os Jogos", "Jogo Específico", "Top 5 Jogos"],
+                horizontal=True
+            )
+
+        # Filtrar dados conforme a seleção
+        if tipo_viz == "Jogo Específico":
+            with col_opts2:
+                jogo_selecionado_semana = st.selectbox(
+                    "🎮 Selecione um jogo:",
+                    options=sorted(vendas_semana['Jogo'].unique()),
+                    key="semana_jogo"
+                )
+            vendas_semana_viz = vendas_semana[vendas_semana['Jogo'] == jogo_selecionado_semana]
+            titulo_grafico = f"Vendas Semanais - {jogo_selecionado_semana}"
+
+        elif tipo_viz == "Top 5 Jogos":
+            top_5 = vendas_semana.groupby('Jogo')['Vendas ilíquidas (€)'].sum().nlargest(5).index.tolist()
+            vendas_semana_viz = vendas_semana[vendas_semana['Jogo'].isin(top_5)]
+            titulo_grafico = "Vendas Semanais - Top 5 Jogos"
+
+        else:  # Todos os Jogos
+            vendas_semana_viz = vendas_semana
+            titulo_grafico = f"Vendas Semanais - Todos os Jogos ({vendas_semana['Jogo'].nunique()} jogos)"
+
+        # Gráfico principal
+        fig = px.line(
+            vendas_semana_viz,
+            x='Data',
+            y='Vendas ilíquidas (€)',
+            color='Jogo',
+            title=titulo_grafico,
+            markers=True,
+            height=500
+        )
+        fig.update_layout(hovermode='x unified', xaxis_tickangle=-45)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Estatísticas por jogo
+        st.markdown("#### 📊 Estatísticas Semanais")
+        stats_jogo = df_filtrado.groupby('Jogo')['Vendas ilíquidas (€)'].agg([
+            ('Nº Semanas', 'count'),
+            ('Total', 'sum'),
+            ('Média', 'mean'),
+            ('Máximo', 'max'),
+            ('Mínimo', 'min'),
+            ('Desvio Padrão', 'std')
+        ]).reset_index().sort_values('Total', ascending=False)
+
+        stats_jogo['Total'] = stats_jogo['Total'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Média'] = stats_jogo['Média'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Máximo'] = stats_jogo['Máximo'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Mínimo'] = stats_jogo['Mínimo'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Desvio Padrão'] = stats_jogo['Desvio Padrão'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo.columns = ['Jogo', 'Nº Semanas', 'Total', 'Média', 'Máximo', 'Mínimo', 'Desvio']
+
+        st.dataframe(stats_jogo, use_container_width=True, hide_index=True)
+
+    with tab8:
+        st.subheader("🔮 Previsão vs Objetivos")
+
+        # Carregar objetivos do CSV novo
+        objetivos_guardados = carregar_objetivos()
+
+        # Calcular tendências e fazer previsão
+        df_trend = df_filtrado.copy()
+        vendas_por_jogo = df_trend.groupby('Jogo')['Vendas ilíquidas (€)'].sum().reset_index()
+        vendas_por_jogo = vendas_por_jogo.sort_values('Vendas ilíquidas (€)', ascending=False)
+
+        st.markdown("#### 🎯 Comparação: Atual vs Objetivo")
+
+        for idx, row in vendas_por_jogo.iterrows():
+            jogo = row['Jogo']
+            vendas_total = row['Vendas ilíquidas (€)']
+
+            # Calcular média semanal
+            df_jogo = df_trend[df_trend['Jogo'] == jogo].sort_values('Data')
+            vendas_semana_jogo = df_jogo.groupby('Data')['Vendas ilíquidas (€)'].sum()
+            media_semana = vendas_semana_jogo.mean() if len(vendas_semana_jogo) > 0 else 0
+
+            # Obter objetivo do CSV guardado
+            objetivo_semanal = objetivos_guardados.get(jogo, 0)
+
+            # Projeção para 4 semanas e anual
+            projecao_4sem = media_semana * 4
+            projecao_anual = media_semana * 52
+
+            # Calcular % de cumprimento vs objetivo
+            pct_cumprimento = (media_semana / objetivo_semanal * 100) if objetivo_semanal > 0 else 0
+            diferenca = media_semana - objetivo_semanal
+
+            # Determinar status
+            if objetivo_semanal == 0:
+                status = "⚫ Sem Objetivo"
+                status_tipo = "secondary"
+            elif pct_cumprimento >= 100:
+                status = "✅ Acima do Objetivo"
+                status_tipo = "success"
+            elif pct_cumprimento >= 90:
+                status = "📈 Próximo do Objetivo"
+                status_tipo = "info"
+            else:
+                status = "⚠️ Abaixo do Objetivo"
+                status_tipo = "warning"
+
+            # Mostrar métricas em colunas
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+            with col1:
+                st.metric(f"🎮 {jogo}", f"€{media_semana:,.0f}", "Média/Sem")
+
+            with col2:
+                st.metric("🎯 Objetivo", f"€{objetivo_semanal:,.0f}", "Meta/Sem")
+
+            with col3:
+                st.metric("📊 % Cumprimento", f"{pct_cumprimento:.1f}%", f"{diferenca:+.0f}€")
+
+            with col4:
+                st.metric("📅 Proj. 4 Sem", f"€{projecao_4sem:,.0f}", "")
+
+            with col5:
+                st.metric("📈 Proj. Anual", f"€{projecao_anual:,.0f}", "")
+
+            with col6:
+                st.metric("Status", status, "")
+
+            # Info box com análise detalhada + gráfico
+            col_txt, col_graf = st.columns([2.5, 1])
+
+            with col_txt:
+                if objetivo_semanal == 0:
+                    st.info(f"ℹ️ **{jogo}** - Sem objetivo definido para este ano")
+                elif pct_cumprimento >= 100:
+                    st.success(f"""
+                    ✅ **{jogo}** está **acima do objetivo**!
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} (+{pct_cumprimento-100:.1f}%)
+                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Tendência: Excelente 🚀
+                    """)
+                elif pct_cumprimento >= 90:
+                    st.info(f"""
+                    📈 **{jogo}** está **próximo do objetivo**!
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                    - Diferença: €{diferenca:,.0f}
+                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Tendência: Bom desempenho 💪
+                    """)
+                else:
+                    st.warning(f"""
+                    ⚠️ **{jogo}** está **abaixo do objetivo**.
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                    - Diferença: €{diferenca:,.0f}
+                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Tendência: Necessário esforço adicional 💡
+                    """)
+
+            # Pequeno gráfico ao lado
+            with col_graf:
+                if objetivo_semanal > 0:
+                    fig_mini = go.Figure(data=[
+                        go.Bar(
+                            x=['Atual', 'Objetivo'],
+                            y=[media_semana, objetivo_semanal],
+                            text=[f'€{media_semana:,.0f}', f'€{objetivo_semanal:,.0f}'],
+                            textposition='outside',
+                            marker=dict(
+                                color=['#1f77b4' if media_semana >= objetivo_semanal else '#ff7f0e', '#2ca02c'],
+                                opacity=0.8
+                            )
+                        )
+                    ])
+                    fig_mini.update_layout(
+                        showlegend=False,
+                        height=200,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        yaxis_title='€',
+                        xaxis_tickfont=dict(size=10),
+                        font=dict(size=9)
+                    )
+                    st.plotly_chart(fig_mini, use_container_width=True)
+
+            # Opção para editar objetivo do jogo
+            with st.expander(f"✏️ Editar Objetivo - {jogo}"):
+                novo_objetivo = st.number_input(
+                    f"Novo objetivo semanal para {jogo}",
+                    value=float(objetivo_semanal) if objetivo_semanal > 0 else 0.0,
+                    min_value=0.0,
+                    step=100.0,
+                    key=f"edit_objetivo_v6_{jogo}"
+                )
+
+                if st.button(f"💾 Guardar Objetivo - {jogo}", key=f"btn_guardar_v6_{jogo}"):
+                    objetivos_guardados[jogo] = novo_objetivo
+                    if guardar_objetivos(objetivos_guardados):
+                        st.success(f"✅ Objetivo de €{novo_objetivo:.0f} guardado para {jogo}!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao guardar objetivo")
+
+            st.divider()
+
+
 # Interface principal
 def main():
     # Cabeçalho
-    st.markdown('<h1 class="main-title">💰 Dashboard v5 - Café Martins</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Análise Completa de Vendas, Custos e Rentabilidade</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">🎰 Dashboard v6 - Café Martins</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Análise Completa de Vendas, Custos, Rentabilidade e Jogos Santa Casa</p>', unsafe_allow_html=True)
 
     # Carregar dados
     try:
@@ -859,7 +1613,7 @@ def main():
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     # Tabs principais
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
         "📊 Visão Geral",
         "☕ Análise por Categoria",
         "📈 Análise Temporal",
@@ -869,12 +1623,109 @@ def main():
         "📑 Dados Detalhados",
         "💸 Análise de Custos",
         "📊 Rentabilidade & Margens",
-        "🎯 Break-Even Analysis"
+        "🎯 Break-Even Analysis",
+        "🎰 Jogos Santa Casa"
     ])
 
     # TAB 1 - Visão Geral
     with tab1:
         st.header("📊 Visão Geral das Vendas")
+
+        # ========== MÉTRICAS DE PERFORMANCE ==========
+        st.subheader("📊 Métricas de Performance")
+
+        # Calcular métricas de performance (passou df completo para comparações históricas)
+        metricas_perf = calcular_metricas_performance(df_filtrado, df)
+
+        if metricas_perf:
+            data_atualizacao = metricas_perf.get('data_atualizacao', 'N/A')
+            st.caption(f"📅 Dados atualizados até: {data_atualizacao}")
+
+            # Performance Semanal
+            st.subheader("📅 Performance Semanal")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**Última Semana**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_semana_atual']),
+                    delta=f"{metricas_perf['var_semana_vs_anterior']:+.1f}% vs Semana Anterior" if metricas_perf['vendas_semana_anterior'] > 0 else "Sem dados"
+                )
+
+            with col2:
+                st.markdown("**Semana Anterior**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_semana_anterior'])
+                )
+
+            with col3:
+                st.markdown("**Mesma Semana Ano Passado**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_semana_ano_passado']),
+                    delta=f"{metricas_perf['var_semana_vs_ano_passado']:+.1f}% vs SWLY" if metricas_perf['vendas_semana_ano_passado'] > 0 else "Sem dados"
+                )
+
+            st.markdown("---")
+
+            # Performance Mensal (MTD)
+            st.subheader("📆 Performance Mensal (MTD)")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown(f"**Mês em Curso (até dia {metricas_perf['dias_mes_atual']})**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_mes_atual']),
+                    delta=f"{metricas_perf['var_mes_vs_anterior']:+.1f}% vs Mês Anterior MTD" if metricas_perf['vendas_mes_anterior'] > 0 else "Sem dados"
+                )
+
+            with col2:
+                st.markdown(f"**Mês Anterior (até dia {metricas_perf['dias_mes_atual']})**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_mes_anterior'])
+                )
+
+            with col3:
+                st.markdown(f"**SMLY - Mesmo Mês Ano Passado (até dia {metricas_perf['dias_mes_atual']})**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_smly']),
+                    delta=f"{metricas_perf['var_mes_vs_ano_passado']:+.1f}% vs SMLY MTD" if metricas_perf['vendas_smly'] > 0 else "Sem dados"
+                )
+
+            st.markdown("---")
+
+            # Performance Anual
+            st.subheader("📈 Performance Anual")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**Ano em Curso (YTD)**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_ano_atual']),
+                    delta=f"{metricas_perf['var_ano_vs_ano_anterior']:+.1f}% vs Ano Anterior YTD" if metricas_perf['vendas_ano_anterior_ytd'] > 0 else "Sem dados"
+                )
+
+            with col2:
+                st.markdown("**Ano Anterior (mesma altura)**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_ano_anterior_ytd'])
+                )
+
+            with col3:
+                st.markdown("**Ano Anterior (Total)**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_ano_anterior_total'])
+                )
+
+            st.markdown("---")
 
         # KPIs por categoria
         st.subheader("🏆 Performance por Categoria")
@@ -890,8 +1741,11 @@ def main():
             col = cols[idx % 4]
             with col:
                 percentual = (row['Valor'] / total_vendas) * 100
+                # Tratar icone None ou vazio
+                icone = row['Icone_Categoria'] if row['Icone_Categoria'] not in [None, 'None', ''] else '🎰'
+                label_categoria = f"{icone} {categoria}"
                 st.metric(
-                    label=f"{row['Icone_Categoria']} {categoria}",
+                    label=label_categoria,
                     value=formatar_moeda(row['Valor']),
                     delta=f"{formatar_percentagem(percentual)} do total"
                 )
@@ -903,7 +1757,8 @@ def main():
 
         with col1:
             # Gráfico de barras horizontal - Distribuição por categoria (mais legível)
-            vendas_categoria = df_filtrado.groupby('Categoria')['Valor'].sum().sort_values(ascending=True)
+            # Reutilizar dados já calculados acima para evitar novo groupby
+            vendas_categoria = resumo_categorias['Valor'].sort_values(ascending=True)
 
             fig_categoria = go.Figure(go.Bar(
                 x=vendas_categoria.values,
@@ -2552,13 +3407,18 @@ def main():
             - Continue monitorando custos e otimizando margens
             """)
 
+    # TAB 11 - Jogos Santa Casa
+    with tab11:
+        df_jogos = carregar_dados_santa_casa()
+        pagina_jogos_santa_casa(df_jogos, data_inicio, data_fim)
+
     # Footer
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     st.markdown("""
         <div style="text-align: center; color: #666; padding: 20px;">
-            <p><strong>Dashboard v5 - Café Martins com Gestão de Custos</strong> | Desenvolvido com Streamlit & Plotly</p>
-            <p>Análise Completa: Vendas + Custos + Rentabilidade + Break-Even</p>
+            <p><strong>Dashboard v6 - Café Martins com Gestão de Custos + Jogos Santa Casa</strong> | Desenvolvido com Streamlit & Plotly</p>
+            <p>Análise Completa: Vendas + Custos + Rentabilidade + Break-Even + Jogos</p>
             <p>Última atualização: {}</p>
         </div>
     """.format(datetime.now().strftime('%d/%m/%Y %H:%M:%S')), unsafe_allow_html=True)

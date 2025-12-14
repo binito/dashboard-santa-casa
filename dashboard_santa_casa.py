@@ -1999,7 +1999,7 @@ def pagina_analise_semanal(df):
     st.info(f"📅 **Última semana:** {ultima_semana.strftime('%d/%m/%Y')} | **Semana anterior:** {penultima_semana.strftime('%d/%m/%Y')}")
 
     # Tabs para diferentes análises
-    tab1, tab2, tab3 = st.tabs(["📊 WoW (Week over Week)", "🔥 Heatmap Performance", "📈 Tendências"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 WoW (Week over Week)", "🔥 Heatmap Performance", "📈 Tendências", "💬 Comentários & Insights"])
 
     with tab1:
         st.markdown("### 📊 Comparação Week over Week")
@@ -2158,6 +2158,212 @@ def pagina_analise_semanal(df):
         stats_categoria['Desvio Padrão'] = stats_categoria['Desvio Padrão'].apply(lambda x: f'€{x:.0f}')
 
         st.dataframe(stats_categoria, use_container_width=True, hide_index=True)
+
+    with tab4:
+        st.markdown("### 💬 Análise Semanal - O que Correu Bem e Mal")
+
+        # Carregar objetivos
+        objetivos = carregar_objetivos()
+
+        # Calcular métricas da última semana
+        total_vendas_ultima = df_ultima['Vendas ilíquidas (€)'].sum()
+        total_vendas_penultima = df_penultima['Vendas ilíquidas (€)'].sum()
+        crescimento_geral = ((total_vendas_ultima - total_vendas_penultima) / total_vendas_penultima * 100) if total_vendas_penultima > 0 else 0
+
+        # Análise por jogo
+        vendas_ultima_jogo = df_ultima.groupby('Jogo')['Vendas ilíquidas (€)'].sum()
+        vendas_penultima_jogo = df_penultima.groupby('Jogo')['Vendas ilíquidas (€)'].sum()
+
+        # Calcular crescimento por jogo
+        crescimento_jogo = {}
+        objetivos_atingidos = {}
+
+        for jogo in vendas_ultima_jogo.index:
+            venda_atual = vendas_ultima_jogo.get(jogo, 0)
+            venda_anterior = vendas_penultima_jogo.get(jogo, 0)
+
+            if venda_anterior > 0:
+                crescimento_jogo[jogo] = ((venda_atual - venda_anterior) / venda_anterior * 100)
+            else:
+                crescimento_jogo[jogo] = 100 if venda_atual > 0 else 0
+
+            # Verificar se atingiu objetivo
+            objetivo = objetivos.get(jogo, 0)
+            if objetivo > 0:
+                percentagem_objetivo = (venda_atual / objetivo) * 100
+                objetivos_atingidos[jogo] = percentagem_objetivo
+
+        # Layout em colunas para melhor visualização
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### ✅ O que Correu Bem")
+            st.markdown("")
+
+            # Jogos com crescimento positivo
+            jogos_crescimento_positivo = sorted(
+                [(jogo, crescimento) for jogo, crescimento in crescimento_jogo.items() if crescimento > 0],
+                key=lambda x: x[1],
+                reverse=True
+            )
+
+            if jogos_crescimento_positivo:
+                for jogo, crescimento in jogos_crescimento_positivo[:5]:
+                    venda_atual = vendas_ultima_jogo.get(jogo, 0)
+                    objetivo = objetivos.get(jogo, 0)
+                    percentagem_obj = (venda_atual / objetivo * 100) if objetivo > 0 else 0
+
+                    # Determinar emoji baseado na performance vs objetivo
+                    if percentagem_obj >= 100:
+                        emoji = "🎯"
+                        status = "Objetivo atingido"
+                    elif percentagem_obj >= 80:
+                        emoji = "📈"
+                        status = "Próximo do objetivo"
+                    else:
+                        emoji = "⬆️"
+                        status = "Em crescimento"
+
+                    st.markdown(f"""
+                    <div style="background: #e8f5e9; padding: 12px; border-radius: 8px; margin-bottom: 10px;
+                                border-left: 4px solid #4caf50;">
+                        <div style="font-weight: bold; color: #2e7d32; font-size: 1rem;">{emoji} {jogo}</div>
+                        <div style="color: #4caf50; font-size: 1.3rem; font-weight: bold;">+{crescimento:.1f}%</div>
+                        <div style="font-size: 0.85rem; color: #555;">
+                            {formatar_euro(venda_atual)} | {status} ({percentagem_obj:.0f}% do objetivo)
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.warning("Nenhum jogo teve crescimento positivo esta semana.")
+
+        with col2:
+            st.markdown("#### ❌ Áreas de Melhoria")
+            st.markdown("")
+
+            # Jogos com crescimento negativo ou objetivos não atingidos
+            problemas = []
+
+            for jogo, crescimento in crescimento_jogo.items():
+                if crescimento < 0:
+                    problemas.append((jogo, "Queda", crescimento))
+                elif objetivos.get(jogo, 0) > 0:
+                    venda_atual = vendas_ultima_jogo.get(jogo, 0)
+                    percentagem_obj = (venda_atual / objetivos.get(jogo, 0)) * 100
+                    if percentagem_obj < 100:
+                        problemas.append((jogo, "Objetivo Baixo", percentagem_obj - 100))
+
+            problemas.sort(key=lambda x: x[2])
+
+            if problemas:
+                for jogo, tipo, valor in problemas[:5]:
+                    venda_atual = vendas_ultima_jogo.get(jogo, 0)
+                    objetivo = objetivos.get(jogo, 0)
+                    percentagem_obj = (venda_atual / objetivo * 100) if objetivo > 0 else 0
+
+                    if tipo == "Queda":
+                        emoji = "📉"
+                        mensagem = f"{valor:.1f}% de queda"
+                    else:
+                        emoji = "⚠️"
+                        falta = objetivo - venda_atual
+                        mensagem = f"Faltam {formatar_euro(falta)} ({percentagem_obj:.0f}% do objetivo)"
+
+                    st.markdown(f"""
+                    <div style="background: #ffebee; padding: 12px; border-radius: 8px; margin-bottom: 10px;
+                                border-left: 4px solid #f44336;">
+                        <div style="font-weight: bold; color: #c62828; font-size: 1rem;">{emoji} {jogo}</div>
+                        <div style="color: #f44336; font-size: 1rem; font-weight: bold;">{mensagem}</div>
+                        <div style="font-size: 0.85rem; color: #555;">
+                            Vendas: {formatar_euro(venda_atual)} | Objetivo: {formatar_euro(objetivo)}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.success("Todos os jogos atingiram os objetivos! 🎉")
+
+        st.divider()
+
+        # Resumo Executivo
+        st.markdown("#### 📋 Resumo Executivo da Semana")
+
+        col_res1, col_res2, col_res3, col_res4 = st.columns(4)
+
+        with col_res1:
+            st.metric(
+                "Total Vendas",
+                formatar_euro(total_vendas_ultima),
+                f"{crescimento_geral:+.1f}%"
+            )
+
+        with col_res2:
+            objectivos_atingidos_count = sum(1 for j, p in objetivos_atingidos.items() if p >= 100)
+            total_jogos = len(objetivos_atingidos) if objetivos_atingidos else 1
+            st.metric(
+                "Objetivos Atingidos",
+                f"{objectivos_atingidos_count}/{total_jogos}",
+                f"{(objectivos_atingidos_count/total_jogos*100):.0f}%"
+            )
+
+        with col_res3:
+            jogos_crescimento = sum(1 for c in crescimento_jogo.values() if c > 0)
+            st.metric(
+                "Jogos em Crescimento",
+                f"{jogos_crescimento}/{len(crescimento_jogo)}",
+                f"{(jogos_crescimento/len(crescimento_jogo)*100):.0f}%"
+            )
+
+        with col_res4:
+            if crescimento_geral > 5:
+                tendencia = "📈 Positiva"
+                delta = f"+{crescimento_geral:.1f}%"
+            elif crescimento_geral < -5:
+                tendencia = "📉 Negativa"
+                delta = f"{crescimento_geral:.1f}%"
+            else:
+                tendencia = "➡️ Estável"
+                delta = f"{crescimento_geral:+.1f}%"
+
+            st.metric(
+                "Tendência",
+                tendencia,
+                delta
+            )
+
+        st.divider()
+
+        # Comentários detalhados
+        st.markdown("#### 🎯 Análise Detalhada")
+
+        analise_text = []
+
+        # Análise geral
+        if crescimento_geral > 5:
+            analise_text.append("✅ **Semana positiva**: O crescimento geral foi superior a 5%, indicando boa performance.")
+        elif crescimento_geral < -5:
+            analise_text.append("⚠️ **Semana desafiante**: Houve uma queda geral nas vendas. Recomenda-se investigação sobre as causas.")
+        else:
+            analise_text.append("➡️ **Semana estável**: O crescimento foi próximo de zero, mantendo a performance anterior.")
+
+        # Jogos destaques
+        if jogos_crescimento_positivo:
+            top_jogo = jogos_crescimento_positivo[0][0]
+            top_crescimento = jogos_crescimento_positivo[0][1]
+            analise_text.append(f"🚀 **Destaque positivo**: {top_jogo} teve o melhor desempenho com crescimento de {top_crescimento:.1f}%.")
+
+        # Preocupações
+        jogos_queda = [jogo for jogo, c in crescimento_jogo.items() if c < -10]
+        if jogos_queda:
+            analise_text.append(f"📉 **Preocupações**: {', '.join(jogos_queda)} tiveram queda significativa (>10%).")
+
+        # Objetivos
+        objectivos_nao_atingidos = [(j, p) for j, p in objetivos_atingidos.items() if p < 100]
+        if objectivos_nao_atingidos:
+            pior_jogo, pior_perc = min(objectivos_nao_atingidos, key=lambda x: x[1])
+            analise_text.append(f"⚠️ **Objetivo crítico**: {pior_jogo} atingiu apenas {pior_perc:.0f}% do objetivo semanal.")
+
+        for texto in analise_text:
+            st.markdown(f"• {texto}")
 
 
 def pagina_comparacoes_avancadas(df_base, jogos_selecionados=None):

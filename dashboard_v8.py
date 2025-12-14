@@ -1,6 +1,8 @@
 """
-Dashboard Profissional v5 - Análise Completa com Gestão de Custos
-Sistema avançado de análise de vendas, custos e rentabilidade
+Dashboard Profissional v8 - ULTRA-RÁPIDO com MariaDB + Custos REAIS (Despesify) + Jogos Santa Casa
+Sistema HÍBRIDO: Despesas Reais do Despesify + Custos Estimados + Comissões Santa Casa
+NOVA VERSÃO V8: Carrega dados diretamente do MariaDB (10-50x mais rápido!)
+Dados sempre atualizados pelos scripts cron diários
 """
 
 import streamlit as st
@@ -10,8 +12,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 from datetime import datetime, timedelta
-from data_loader_v5 import DataLoaderV5
-from cost_manager import CostManager
+from data_loader_v8 import DataLoaderV8  # V8: CARREGA DO MARIADB
+from cost_manager_v2 import CostManagerV2  # NOVA VERSÃO COM DESPESIFY
 from product_categorizer import ProductCategorizer
 import streamlit_authenticator as stauth
 import yaml
@@ -25,8 +27,8 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard v5 - Café Martins (Custos & Rentabilidade)",
-    page_icon="💰",
+    page_title="Dashboard v8 🚀 - Café Martins (MariaDB + Custos REAIS)",
+    page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -192,13 +194,17 @@ st.markdown("""
 
 
 # Funções auxiliares
-@st.cache_data(ttl=1800)
+@st.cache_resource(ttl=1800)
 def carregar_dados():
-    """Carrega dados com custos - cache de 30 minutos"""
-    with st.spinner("Carregando dados com informações de custos..."):
-        loader = DataLoaderV5()
+    """Carrega dados com custos REAIS (Despesify) + estimados - cache de 30 minutos
+
+    V8: Carrega direto do MariaDB - ULTRA-RÁPIDO!
+    Usa cache_resource porque cost_manager tem conexão MariaDB (não serializável com pickle)
+    """
+    with st.spinner("🚀 Carregando dados do MariaDB (ultra-rápido)..."):
+        loader = DataLoaderV8(usar_despesify=True)  # V8: MARIADB
         df = loader.carregar_tudo_integrado_com_custos()
-        cost_manager = loader.cost_manager  # Usar o cost_manager do loader para ter dados carregados
+        cost_manager = loader.cost_manager  # CostManagerV2 com Despesify
         return df, loader, cost_manager
 
 
@@ -213,8 +219,8 @@ def formatar_percentagem(valor):
 
 
 def calcular_delta(atual, anterior):
-    """Calcula variação percentual"""
-    if anterior == 0:
+    """Calcula variação percentual - retorna 0 se anterior é 0 ou None"""
+    if anterior is None or anterior == 0:
         return 0
     return ((atual - anterior) / anterior) * 100
 
@@ -260,6 +266,110 @@ def calcular_metricas_periodo(df, periodo_dias):
         'media_diaria': df_periodo.groupby('Data')['Valor'].sum().mean(),
         'quantidade': df_periodo['Qtd'].sum() if 'Qtd' in df_periodo.columns else 0,
         'vendas': len(df_periodo)
+    }
+
+
+def calcular_metricas_performance(df_filtrado, df_completo=None):
+    """
+    Calcula métricas de performance semanal, mensal e anual com comparações
+    Funciona corretamente mesmo com períodos filtrados
+
+    Args:
+        df_filtrado: DataFrame com dados filtrados (período selecionado)
+        df_completo: DataFrame com todos os dados (para comparações históricas)
+
+    Returns:
+        dict com métricas de performance
+    """
+    if df_filtrado.empty:
+        return {}
+
+    # Se não houver dataframe completo, usar o filtrado
+    df_comparacao = df_completo if df_completo is not None else df_filtrado
+
+    data_hoje = df_filtrado['Data'].max()
+
+    # ========== PERFORMANCE SEMANAL ==========
+    # Última semana (últimos 7 dias) - usar dados filtrados
+    data_inicio_semana_atual = data_hoje - timedelta(days=6)
+    df_semana_atual = df_filtrado[df_filtrado['Data'] >= data_inicio_semana_atual]
+    vendas_semana_atual = df_semana_atual['Valor'].sum()
+
+    # Semana anterior (7 dias antes) - usar dados completos
+    data_fim_semana_anterior = data_inicio_semana_atual - timedelta(days=1)
+    data_inicio_semana_anterior = data_fim_semana_anterior - timedelta(days=6)
+    df_semana_anterior = df_comparacao[(df_comparacao['Data'] >= data_inicio_semana_anterior) & (df_comparacao['Data'] <= data_fim_semana_anterior)]
+    vendas_semana_anterior = df_semana_anterior['Valor'].sum() if not df_semana_anterior.empty else None
+    var_semana_vs_anterior = calcular_delta(vendas_semana_atual, vendas_semana_anterior) if vendas_semana_anterior is not None else 0
+
+    # Mesma semana ano passado - usar dados completos
+    data_inicio_semana_ano_passado = data_inicio_semana_atual - timedelta(days=365)
+    data_fim_semana_ano_passado = data_hoje - timedelta(days=365)
+    df_semana_ano_passado = df_comparacao[(df_comparacao['Data'] >= data_inicio_semana_ano_passado) & (df_comparacao['Data'] <= data_fim_semana_ano_passado)]
+    vendas_semana_ano_passado = df_semana_ano_passado['Valor'].sum() if not df_semana_ano_passado.empty else None
+    var_semana_vs_ano_passado = calcular_delta(vendas_semana_atual, vendas_semana_ano_passado) if vendas_semana_ano_passado is not None else 0
+
+    # ========== PERFORMANCE MENSAL (MTD - Month To Date) ==========
+    # Mês em curso (até hoje) - usar dados filtrados
+    primeiro_dia_mes = data_hoje.replace(day=1)
+    df_mes_atual = df_filtrado[df_filtrado['Data'] >= primeiro_dia_mes]
+    vendas_mes_atual = df_mes_atual['Valor'].sum()
+    dias_mes_atual = (data_hoje - primeiro_dia_mes).days + 1
+
+    # Mês anterior (mesmos dias) - usar dados completos
+    ultimo_dia_mes_anterior = primeiro_dia_mes - timedelta(days=1)
+    data_inicio_mes_anterior = ultimo_dia_mes_anterior.replace(day=1)
+    data_fim_mes_anterior = data_inicio_mes_anterior + timedelta(days=dias_mes_atual - 1)
+    df_mes_anterior = df_comparacao[(df_comparacao['Data'] >= data_inicio_mes_anterior) & (df_comparacao['Data'] <= data_fim_mes_anterior)]
+    vendas_mes_anterior = df_mes_anterior['Valor'].sum() if not df_mes_anterior.empty else None
+    var_mes_vs_anterior = calcular_delta(vendas_mes_atual, vendas_mes_anterior) if vendas_mes_anterior is not None else 0
+
+    # Mesmo mês ano passado (até o mesmo dia) - usar dados completos
+    data_inicio_smly = primeiro_dia_mes - timedelta(days=365)
+    data_fim_smly = primeiro_dia_mes + timedelta(days=dias_mes_atual - 1) - timedelta(days=365)
+    df_smly = df_comparacao[(df_comparacao['Data'] >= data_inicio_smly) & (df_comparacao['Data'] <= data_fim_smly)]
+    vendas_smly = df_smly['Valor'].sum() if not df_smly.empty else None
+    var_mes_vs_ano_passado = calcular_delta(vendas_mes_atual, vendas_smly) if vendas_smly is not None else 0
+
+    # ========== PERFORMANCE ANUAL (YTD - Year To Date) ==========
+    # Ano em curso (até hoje) - usar dados COMPLETOS para YTD correto
+    primeiro_dia_ano = data_hoje.replace(month=1, day=1)
+    df_ano_atual = df_comparacao[df_comparacao['Data'] >= primeiro_dia_ano]
+    vendas_ano_atual = df_ano_atual['Valor'].sum()
+
+    # Ano anterior (até mesma data) - usar dados completos
+    data_ytd_ano_anterior = data_hoje - timedelta(days=365)
+    primeiro_dia_ano_anterior = data_ytd_ano_anterior.replace(month=1, day=1)
+    df_ano_anterior_ytd = df_comparacao[(df_comparacao['Data'] >= primeiro_dia_ano_anterior) & (df_comparacao['Data'] <= data_ytd_ano_anterior)]
+    vendas_ano_anterior_ytd = df_ano_anterior_ytd['Valor'].sum() if not df_ano_anterior_ytd.empty else None
+    var_ano_vs_ano_anterior = calcular_delta(vendas_ano_atual, vendas_ano_anterior_ytd) if vendas_ano_anterior_ytd is not None else 0
+
+    # Total ano anterior (completo) - usar dados completos
+    data_inicio_ano_anterior_total = primeiro_dia_ano_anterior
+    data_fim_ano_anterior_total = data_ytd_ano_anterior.replace(month=12, day=31)
+    df_ano_anterior_total = df_comparacao[(df_comparacao['Data'] >= data_inicio_ano_anterior_total) & (df_comparacao['Data'] <= data_fim_ano_anterior_total)]
+    vendas_ano_anterior_total = df_ano_anterior_total['Valor'].sum() if not df_ano_anterior_total.empty else None
+
+    return {
+        'data_atualizacao': data_hoje.strftime('%d/%m/%Y'),
+        # Semanal
+        'vendas_semana_atual': vendas_semana_atual,
+        'vendas_semana_anterior': vendas_semana_anterior if vendas_semana_anterior is not None else 0,
+        'vendas_semana_ano_passado': vendas_semana_ano_passado if vendas_semana_ano_passado is not None else 0,
+        'var_semana_vs_anterior': var_semana_vs_anterior,
+        'var_semana_vs_ano_passado': var_semana_vs_ano_passado,
+        # Mensal
+        'vendas_mes_atual': vendas_mes_atual,
+        'vendas_mes_anterior': vendas_mes_anterior if vendas_mes_anterior is not None else 0,
+        'vendas_smly': vendas_smly if vendas_smly is not None else 0,
+        'var_mes_vs_anterior': var_mes_vs_anterior,
+        'var_mes_vs_ano_passado': var_mes_vs_ano_passado,
+        'dias_mes_atual': dias_mes_atual,
+        # Anual
+        'vendas_ano_atual': vendas_ano_atual,
+        'vendas_ano_anterior_ytd': vendas_ano_anterior_ytd if vendas_ano_anterior_ytd is not None else 0,
+        'vendas_ano_anterior_total': vendas_ano_anterior_total if vendas_ano_anterior_total is not None else 0,
+        'var_ano_vs_ano_anterior': var_ano_vs_ano_anterior,
     }
 
 
@@ -671,11 +781,655 @@ def gerar_relatorio_excel_avancado(df_filtrado, data_inicio, data_fim, categoria
     return output
 
 
+# ============= FUNÇÕES PARA JOGOS SANTA CASA =============
+
+@st.cache_data(ttl=1800)
+def carregar_dados_santa_casa():
+    """Carrega dados dos Jogos Santa Casa - cache de 30 minutos"""
+    data_file = Path('/home/jorge/Documentos/Santa casa/dados/dados.csv')
+
+    if not data_file.exists():
+        st.error(f"Arquivo não encontrado: {data_file}")
+        return None
+
+    try:
+        df = pd.read_csv(data_file, sep=';', encoding='utf-8')
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return None
+
+    # Converter Data para datetime
+    df['Data'] = pd.to_datetime(df['Data'], format='%d-%m-%Y', errors='coerce')
+
+    # Remover linhas de PRESTAÇÃO DE CONTAS dos dados principais
+    df = df[df['Categoria'] != 'PRESTAÇÃO DE CONTAS'].copy()
+
+    # Converter colunas numéricas (OTIMIZADO: vectorizado)
+    numeric_cols = ['Qt Maços', 'Vendas ilíquidas (€)', 'Remunerações (€)', 'Prémios (€)', 'Valor (€)']
+    for col in numeric_cols:
+        if col in df.columns:
+            # Vectorizado: converter formato europeu para float
+            df[col] = df[col].astype(str).str.strip()
+            # Formato europeu: 1.234,56 -> remove pontos de milhar, troca vírgula por ponto
+            mask_europeu = df[col].str.contains(',', na=False)
+            df.loc[mask_europeu, col] = df.loc[mask_europeu, col].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+
+    # Adicionar colunas temporais
+    df['Ano'] = df['Data'].dt.year
+    df['Mes'] = df['Data'].dt.month
+    df['Ano_Mes'] = df['Data'].dt.to_period('M').astype(str)
+
+    # Ordenar por data
+    df = df.sort_values('Data')
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def carregar_objetivos():
+    """Carrega objetivos semanais do CSV (cacheado por 1 hora)."""
+    objetivos_file = Path('/home/jorge/Documentos/Streamlit/objetivos_semanais.csv')
+
+    if not objetivos_file.exists():
+        # Criar arquivo padrão se não existir
+        df_objetivos = pd.DataFrame({
+            'Jogo': [],
+            'Objetivo': []
+        })
+        df_objetivos.to_csv(objetivos_file, sep=';', index=False)
+        return {}
+
+    try:
+        df_objetivos = pd.read_csv(objetivos_file, sep=';')
+        return dict(zip(df_objetivos['Jogo'], df_objetivos['Objetivo']))
+    except Exception as e:
+        st.warning(f"Erro ao carregar objetivos: {e}")
+        return {}
+
+
+def guardar_objetivos(objetivos_dict):
+    """Guarda objetivos semanais em CSV."""
+    objetivos_file = Path('/home/jorge/Documentos/Streamlit/objetivos_semanais.csv')
+
+    df_objetivos = pd.DataFrame({
+        'Jogo': list(objetivos_dict.keys()),
+        'Objetivo': list(objetivos_dict.values())
+    })
+
+    try:
+        df_objetivos.to_csv(objetivos_file, sep=';', index=False)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao guardar objetivos: {e}")
+        return False
+
+
+def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
+    """Página de análise dos Jogos Santa Casa"""
+    if df is None or len(df) == 0:
+        st.error("Dados não carregados")
+        return
+
+    # Filtrar dados pela data se fornecida
+    df_filtrado = df.copy()
+    if data_inicio is not None and data_fim is not None:
+        df_filtrado = df_filtrado[
+            (pd.to_datetime(df_filtrado['Data']).dt.date >= data_inicio) &
+            (pd.to_datetime(df_filtrado['Data']).dt.date <= data_fim)
+        ]
+
+    st.markdown('<h2 style="text-align: center; color: #1f77b4;">🎰 Análise de Jogos - Santa Casa</h2>',
+                unsafe_allow_html=True)
+    st.caption("📊 Análise de vendas ilíquidas semanais dos Jogos Santa Casa")
+
+    # KPIs principais
+    col1, col2, col3, col4 = st.columns(4)
+
+    total_vendas = df_filtrado['Vendas ilíquidas (€)'].sum()
+    total_remuneracoes = df_filtrado['Remunerações (€)'].sum()
+    total_premios = df_filtrado['Prémios (€)'].sum()
+    num_jogos = df_filtrado['Jogo'].nunique()
+
+    with col1:
+        st.metric("Total Vendas Ilíquidas", f"€{total_vendas:,.0f}")
+    with col2:
+        st.metric("Total Remunerações", f"€{total_remuneracoes:,.0f}")
+    with col3:
+        st.metric("Total Prémios", f"€{total_premios:,.0f}")
+    with col4:
+        st.metric("Nº de Jogos", num_jogos)
+
+    st.divider()
+
+    # Tabs para análises
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "📈 Evolução Temporal",
+        "🎮 Por Jogo",
+        "🎰 Por Categoria",
+        "📊 Comparação Semanal",
+        "📈 MoM (Mês a Mês)",
+        "📅 YoY (Ano a Ano)",
+        "📆 Semana a Semana",
+        "🔮 Previsão"
+    ])
+
+    with tab1:
+        st.subheader("Evolução de Vendas ao Longo do Tempo")
+
+        # Dados semanais
+        vendas_semanal = df_filtrado.groupby('Data').agg({
+            'Vendas ilíquidas (€)': 'sum',
+            'Remunerações (€)': 'sum',
+            'Prémios (€)': 'sum'
+        }).reset_index()
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=vendas_semanal['Data'],
+            y=vendas_semanal['Vendas ilíquidas (€)'],
+            name='Vendas Ilíquidas',
+            mode='lines+markers',
+            line=dict(color='#1f77b4', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(31, 119, 180, 0.2)'
+        ))
+
+        fig.update_layout(
+            title="Evolução de Vendas Ilíquidas por Semana",
+            xaxis_title="Data (Semana)",
+            yaxis_title="Vendas (€)",
+            hovermode='x unified',
+            height=500
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Estatísticas
+        st.markdown("#### 📊 Estatísticas Semanais")
+        stats = {
+            'Semana com Maior Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].max():,.0f}",
+            'Semana com Menor Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].min():,.0f}",
+            'Média Semanal': f"€{vendas_semanal['Vendas ilíquidas (€)'].mean():,.0f}",
+            'Desvio Padrão': f"€{vendas_semanal['Vendas ilíquidas (€)'].std():,.0f}"
+        }
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Máximo", stats['Semana com Maior Vendas'])
+        with col2:
+            st.metric("Mínimo", stats['Semana com Menor Vendas'])
+        with col3:
+            st.metric("Média", stats['Média Semanal'])
+        with col4:
+            st.metric("Desvio", stats['Desvio Padrão'])
+
+    with tab2:
+        st.subheader("Análise por Jogo")
+
+        # Top Jogos
+        vendas_jogo = df_filtrado.groupby('Jogo').agg({
+            'Vendas ilíquidas (€)': ['sum', 'mean', 'count'],
+            'Data': 'nunique'
+        }).reset_index()
+
+        vendas_jogo.columns = ['Jogo', 'Total Vendas', 'Média Semanal', 'Nº Transações', 'Semanas Ativas']
+        vendas_jogo = vendas_jogo.sort_values('Total Vendas', ascending=False)
+
+        # Gráfico Top 15 Jogos
+        top_jogos = vendas_jogo.head(15)
+
+        fig = px.bar(
+            top_jogos,
+            x='Jogo',
+            y='Total Vendas',
+            title='Top 15 Jogos - Vendas Ilíquidas Totais',
+            labels={'Total Vendas': 'Vendas (€)', 'Jogo': 'Jogo'},
+            height=500
+        )
+
+        fig.update_traces(
+            text=top_jogos['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
+            textposition='outside'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Tabela detalhada
+        st.markdown("#### 📋 Resumo Completo por Jogo")
+        vendas_jogo_display = vendas_jogo.copy()
+        vendas_jogo_display['Total Vendas'] = vendas_jogo_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
+        vendas_jogo_display['Média Semanal'] = vendas_jogo_display['Média Semanal'].apply(lambda x: f'€{x:,.0f}')
+        st.dataframe(vendas_jogo_display, use_container_width=True, hide_index=True)
+
+    with tab3:
+        st.subheader("Análise por Categoria")
+
+        # Vendas por categoria
+        vendas_cat = df_filtrado.groupby('Categoria').agg({
+            'Vendas ilíquidas (€)': 'sum',
+            'Jogo': 'nunique'
+        }).reset_index()
+
+        vendas_cat.columns = ['Categoria', 'Total Vendas', 'Nº Jogos']
+        vendas_cat = vendas_cat.sort_values('Total Vendas', ascending=False)
+
+        # Gráfico de pizza
+        fig_pizza = px.pie(
+            vendas_cat,
+            values='Total Vendas',
+            names='Categoria',
+            title='Distribuição de Vendas por Categoria',
+            height=500
+        )
+
+        st.plotly_chart(fig_pizza, use_container_width=True)
+
+        # Gráfico de barras
+        fig_barras = px.bar(
+            vendas_cat,
+            x='Categoria',
+            y='Total Vendas',
+            title='Vendas por Categoria',
+            labels={'Total Vendas': 'Vendas (€)', 'Categoria': 'Categoria'},
+            height=400
+        )
+
+        fig_barras.update_traces(
+            text=vendas_cat['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
+            textposition='outside'
+        )
+
+        st.plotly_chart(fig_barras, use_container_width=True)
+
+        # Tabela
+        st.markdown("#### 📊 Detalhes por Categoria")
+        vendas_cat_display = vendas_cat.copy()
+        vendas_cat_display['Total Vendas'] = vendas_cat_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
+        st.dataframe(vendas_cat_display, use_container_width=True, hide_index=True)
+
+    with tab4:
+        st.subheader("Comparação Semanal de Top Jogos")
+
+        # Selecionar top 5 jogos
+        top_5_jogos = df_filtrado.groupby('Jogo')['Vendas ilíquidas (€)'].sum().nlargest(5).index.tolist()
+
+        # Dados semanais por jogo
+        df_top = df_filtrado[df_filtrado['Jogo'].isin(top_5_jogos)]
+        vendas_semana_jogo = df_top.groupby(['Data', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+
+        fig = px.line(
+            vendas_semana_jogo,
+            x='Data',
+            y='Vendas ilíquidas (€)',
+            color='Jogo',
+            title='Evolução Semanal - Top 5 Jogos',
+            markers=True,
+            height=500
+        )
+
+        fig.update_layout(
+            xaxis_title="Semana",
+            yaxis_title="Vendas (€)",
+            hovermode='x unified'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Tabela de comparação
+        st.markdown("#### 📊 Tabela Comparativa Semanal")
+        pivot_vendas = vendas_semana_jogo.pivot(index='Data', columns='Jogo', values='Vendas ilíquidas (€)').fillna(0)
+        pivot_vendas = pivot_vendas.applymap(lambda x: f'€{x:,.0f}' if x > 0 else '-')
+        st.dataframe(pivot_vendas, use_container_width=True)
+
+    with tab5:
+        st.subheader("📈 Análise Mês a Mês (MoM)")
+
+        # Preparar dados mensais
+        df_mes = df_filtrado.copy()
+        df_mes['Ano_Mes'] = df_mes['Data'].dt.to_period('M').astype(str)
+        vendas_mes = df_mes.groupby(['Ano_Mes', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+
+        # Seletor de jogos para análise
+        jogos_disponiveis = sorted(vendas_mes['Jogo'].unique())
+        jogos_selecionados = st.multiselect(
+            "🎮 Selecione os jogos para visualizar (deixe em branco para ver todos):",
+            options=jogos_disponiveis,
+            default=jogos_disponiveis[:5] if len(jogos_disponiveis) > 5 else jogos_disponiveis
+        )
+
+        if not jogos_selecionados:
+            jogos_selecionados = jogos_disponiveis
+
+        vendas_mes_filtrado = vendas_mes[vendas_mes['Jogo'].isin(jogos_selecionados)]
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            fig = px.line(
+                vendas_mes_filtrado,
+                x='Ano_Mes',
+                y='Vendas ilíquidas (€)',
+                color='Jogo',
+                title=f'Vendas Mensais por Jogo ({len(jogos_selecionados)} selecionados)',
+                markers=True,
+                height=450
+            )
+            fig.update_layout(hovermode='x unified', xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            # Crescimento MoM %
+            vendas_mes_filtrado = vendas_mes_filtrado.copy()
+            vendas_mes_filtrado['Vendas_Anterior'] = vendas_mes_filtrado.groupby('Jogo')['Vendas ilíquidas (€)'].shift(1)
+            vendas_mes_filtrado['Crescimento_MoM'] = ((vendas_mes_filtrado['Vendas ilíquidas (€)'] - vendas_mes_filtrado['Vendas_Anterior']) /
+                                              vendas_mes_filtrado['Vendas_Anterior'] * 100).fillna(0)
+
+            fig = px.bar(
+                vendas_mes_filtrado,
+                x='Ano_Mes',
+                y='Crescimento_MoM',
+                color='Jogo',
+                title='Crescimento MoM (%)',
+                barmode='group',
+                height=450
+            )
+            fig.add_hline(y=0, line_dash="dash", line_color="gray")
+            fig.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Tabela resumida de MoM
+        st.markdown("#### 📊 Tabela Resumida - Crescimento Mês a Mês")
+        tabela_mom = vendas_mes_filtrado[['Jogo', 'Ano_Mes', 'Vendas ilíquidas (€)', 'Crescimento_MoM']].copy()
+        tabela_mom = tabela_mom.sort_values(['Jogo', 'Ano_Mes'])
+        tabela_mom['Vendas ilíquidas (€)'] = tabela_mom['Vendas ilíquidas (€)'].apply(lambda x: f'€{x:,.0f}')
+        tabela_mom['Crescimento_MoM'] = tabela_mom['Crescimento_MoM'].apply(lambda x: f'{x:+.1f}%')
+        tabela_mom.columns = ['Jogo', 'Mês', 'Vendas', 'Crescimento %']
+        st.dataframe(tabela_mom, use_container_width=True, hide_index=True)
+
+    with tab6:
+        st.subheader("📅 Análise Ano a Ano (YoY)")
+
+        # Preparar dados por mês do ano
+        df_yoy = df_filtrado.copy()
+        df_yoy['Mes'] = df_yoy['Data'].dt.month
+        df_yoy['Ano'] = df_yoy['Data'].dt.year
+        vendas_yoy = df_yoy.groupby(['Ano', 'Mes', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+        vendas_yoy['Mes_Nome'] = pd.to_datetime(vendas_yoy['Mes'].astype(str), format='%m').dt.strftime('%b')
+
+        # Seletor de jogo para análise YoY
+        jogos_yoy = sorted(vendas_yoy['Jogo'].unique())
+        jogo_selecionado_yoy = st.selectbox(
+            "🎮 Selecione um jogo para análise YoY:",
+            options=jogos_yoy,
+            key="yoy_jogo"
+        )
+
+        vendas_yoy_jogo = vendas_yoy[vendas_yoy['Jogo'] == jogo_selecionado_yoy]
+
+        # Gráfico principal
+        fig_yoy = px.line(
+            vendas_yoy_jogo,
+            x='Mes',
+            y='Vendas ilíquidas (€)',
+            color='Ano',
+            title=f'Evolução Mensal - {jogo_selecionado_yoy} (Comparação Anual)',
+            markers=True,
+            height=450,
+            labels={'Mes': 'Mês', 'Vendas ilíquidas (€)': 'Vendas (€)'}
+        )
+        fig_yoy.update_layout(hovermode='x unified', xaxis_title="Mês do Ano")
+        st.plotly_chart(fig_yoy, use_container_width=True)
+
+        # Tabela comparativa
+        st.markdown(f"#### 📊 Tabela Comparativa - {jogo_selecionado_yoy}")
+        tabela_yoy = vendas_yoy_jogo.pivot_table(
+            index='Mes_Nome',
+            columns='Ano',
+            values='Vendas ilíquidas (€)',
+            aggfunc='sum'
+        ).fillna(0)
+
+        # Adicionar coluna de variação
+        anos_unicos = sorted(vendas_yoy_jogo['Ano'].unique())
+        if len(anos_unicos) >= 2:
+            ano_atual = anos_unicos[-1]
+            ano_anterior = anos_unicos[-2]
+            if ano_atual in tabela_yoy.columns and ano_anterior in tabela_yoy.columns:
+                tabela_yoy['Variação %'] = ((tabela_yoy[ano_atual] - tabela_yoy[ano_anterior]) /
+                                            tabela_yoy[ano_anterior] * 100).fillna(0)
+
+        # Formatar valores
+        for col in tabela_yoy.columns:
+            if col != 'Variação %':
+                tabela_yoy[col] = tabela_yoy[col].apply(lambda x: f'€{x:,.0f}')
+        tabela_yoy['Variação %'] = tabela_yoy.get('Variação %', pd.Series()).apply(lambda x: f'{x:+.1f}%' if isinstance(x, (int, float)) else x)
+
+        st.dataframe(tabela_yoy, use_container_width=True)
+
+    with tab7:
+        st.subheader("📆 Análise Semana a Semana")
+
+        # Preparar dados semanais
+        df_semana = df.copy()
+        vendas_semana = df_semana.groupby(['Data', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
+        vendas_semana = vendas_semana.sort_values('Data')
+
+        # Opções de visualização
+        col_opts1, col_opts2 = st.columns(2)
+        with col_opts1:
+            tipo_viz = st.radio(
+                "📊 Tipo de Visualização:",
+                options=["Todos os Jogos", "Jogo Específico", "Top 5 Jogos"],
+                horizontal=True
+            )
+
+        # Filtrar dados conforme a seleção
+        if tipo_viz == "Jogo Específico":
+            with col_opts2:
+                jogo_selecionado_semana = st.selectbox(
+                    "🎮 Selecione um jogo:",
+                    options=sorted(vendas_semana['Jogo'].unique()),
+                    key="semana_jogo"
+                )
+            vendas_semana_viz = vendas_semana[vendas_semana['Jogo'] == jogo_selecionado_semana]
+            titulo_grafico = f"Vendas Semanais - {jogo_selecionado_semana}"
+
+        elif tipo_viz == "Top 5 Jogos":
+            top_5 = vendas_semana.groupby('Jogo')['Vendas ilíquidas (€)'].sum().nlargest(5).index.tolist()
+            vendas_semana_viz = vendas_semana[vendas_semana['Jogo'].isin(top_5)]
+            titulo_grafico = "Vendas Semanais - Top 5 Jogos"
+
+        else:  # Todos os Jogos
+            vendas_semana_viz = vendas_semana
+            titulo_grafico = f"Vendas Semanais - Todos os Jogos ({vendas_semana['Jogo'].nunique()} jogos)"
+
+        # Gráfico principal
+        fig = px.line(
+            vendas_semana_viz,
+            x='Data',
+            y='Vendas ilíquidas (€)',
+            color='Jogo',
+            title=titulo_grafico,
+            markers=True,
+            height=500
+        )
+        fig.update_layout(hovermode='x unified', xaxis_tickangle=-45)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Estatísticas por jogo
+        st.markdown("#### 📊 Estatísticas Semanais")
+        stats_jogo = df_filtrado.groupby('Jogo')['Vendas ilíquidas (€)'].agg([
+            ('Nº Semanas', 'count'),
+            ('Total', 'sum'),
+            ('Média', 'mean'),
+            ('Máximo', 'max'),
+            ('Mínimo', 'min'),
+            ('Desvio Padrão', 'std')
+        ]).reset_index().sort_values('Total', ascending=False)
+
+        stats_jogo['Total'] = stats_jogo['Total'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Média'] = stats_jogo['Média'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Máximo'] = stats_jogo['Máximo'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Mínimo'] = stats_jogo['Mínimo'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Desvio Padrão'] = stats_jogo['Desvio Padrão'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo.columns = ['Jogo', 'Nº Semanas', 'Total', 'Média', 'Máximo', 'Mínimo', 'Desvio']
+
+        st.dataframe(stats_jogo, use_container_width=True, hide_index=True)
+
+    with tab8:
+        st.subheader("🔮 Previsão vs Objetivos")
+
+        # Carregar objetivos do CSV novo
+        objetivos_guardados = carregar_objetivos()
+
+        # Calcular tendências e fazer previsão
+        df_trend = df_filtrado.copy()
+        vendas_por_jogo = df_trend.groupby('Jogo')['Vendas ilíquidas (€)'].sum().reset_index()
+        vendas_por_jogo = vendas_por_jogo.sort_values('Vendas ilíquidas (€)', ascending=False)
+
+        st.markdown("#### 🎯 Comparação: Atual vs Objetivo")
+
+        for idx, row in vendas_por_jogo.iterrows():
+            jogo = row['Jogo']
+            vendas_total = row['Vendas ilíquidas (€)']
+
+            # Calcular média semanal
+            df_jogo = df_trend[df_trend['Jogo'] == jogo].sort_values('Data')
+            vendas_semana_jogo = df_jogo.groupby('Data')['Vendas ilíquidas (€)'].sum()
+            media_semana = vendas_semana_jogo.mean() if len(vendas_semana_jogo) > 0 else 0
+
+            # Obter objetivo do CSV guardado
+            objetivo_semanal = objetivos_guardados.get(jogo, 0)
+
+            # Projeção para 4 semanas e anual
+            projecao_4sem = media_semana * 4
+            projecao_anual = media_semana * 52
+
+            # Calcular % de cumprimento vs objetivo
+            pct_cumprimento = (media_semana / objetivo_semanal * 100) if objetivo_semanal > 0 else 0
+            diferenca = media_semana - objetivo_semanal
+
+            # Determinar status
+            if objetivo_semanal == 0:
+                status = "⚫ Sem Objetivo"
+                status_tipo = "secondary"
+            elif pct_cumprimento >= 100:
+                status = "✅ Acima do Objetivo"
+                status_tipo = "success"
+            elif pct_cumprimento >= 90:
+                status = "📈 Próximo do Objetivo"
+                status_tipo = "info"
+            else:
+                status = "⚠️ Abaixo do Objetivo"
+                status_tipo = "warning"
+
+            # Mostrar métricas em colunas
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+            with col1:
+                st.metric(f"🎮 {jogo}", f"€{media_semana:,.0f}", "Média/Sem")
+
+            with col2:
+                st.metric("🎯 Objetivo", f"€{objetivo_semanal:,.0f}", "Meta/Sem")
+
+            with col3:
+                st.metric("📊 % Cumprimento", f"{pct_cumprimento:.1f}%", f"{diferenca:+.0f}€")
+
+            with col4:
+                st.metric("📅 Proj. 4 Sem", f"€{projecao_4sem:,.0f}", "")
+
+            with col5:
+                st.metric("📈 Proj. Anual", f"€{projecao_anual:,.0f}", "")
+
+            with col6:
+                st.metric("Status", status, "")
+
+            # Info box com análise detalhada + gráfico
+            col_txt, col_graf = st.columns([2.5, 1])
+
+            with col_txt:
+                if objetivo_semanal == 0:
+                    st.info(f"ℹ️ **{jogo}** - Sem objetivo definido para este ano")
+                elif pct_cumprimento >= 100:
+                    st.success(f"""
+                    ✅ **{jogo}** está **acima do objetivo**!
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} (+{pct_cumprimento-100:.1f}%)
+                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Tendência: Excelente 🚀
+                    """)
+                elif pct_cumprimento >= 90:
+                    st.info(f"""
+                    📈 **{jogo}** está **próximo do objetivo**!
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                    - Diferença: €{diferenca:,.0f}
+                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Tendência: Bom desempenho 💪
+                    """)
+                else:
+                    st.warning(f"""
+                    ⚠️ **{jogo}** está **abaixo do objetivo**.
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                    - Diferença: €{diferenca:,.0f}
+                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Tendência: Necessário esforço adicional 💡
+                    """)
+
+            # Pequeno gráfico ao lado
+            with col_graf:
+                if objetivo_semanal > 0:
+                    fig_mini = go.Figure(data=[
+                        go.Bar(
+                            x=['Atual', 'Objetivo'],
+                            y=[media_semana, objetivo_semanal],
+                            text=[f'€{media_semana:,.0f}', f'€{objetivo_semanal:,.0f}'],
+                            textposition='outside',
+                            marker=dict(
+                                color=['#1f77b4' if media_semana >= objetivo_semanal else '#ff7f0e', '#2ca02c'],
+                                opacity=0.8
+                            )
+                        )
+                    ])
+                    fig_mini.update_layout(
+                        showlegend=False,
+                        height=200,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        yaxis_title='€',
+                        xaxis_tickfont=dict(size=10),
+                        font=dict(size=9)
+                    )
+                    st.plotly_chart(fig_mini, use_container_width=True)
+
+            # Opção para editar objetivo do jogo
+            with st.expander(f"✏️ Editar Objetivo - {jogo}"):
+                novo_objetivo = st.number_input(
+                    f"Novo objetivo semanal para {jogo}",
+                    value=float(objetivo_semanal) if objetivo_semanal > 0 else 0.0,
+                    min_value=0.0,
+                    step=100.0,
+                    key=f"edit_objetivo_v6_{jogo}"
+                )
+
+                if st.button(f"💾 Guardar Objetivo - {jogo}", key=f"btn_guardar_v6_{jogo}"):
+                    objetivos_guardados[jogo] = novo_objetivo
+                    if guardar_objetivos(objetivos_guardados):
+                        st.success(f"✅ Objetivo de €{novo_objetivo:.0f} guardado para {jogo}!")
+                        st.rerun()
+                    else:
+                        st.error("Erro ao guardar objetivo")
+
+            st.divider()
+
+
 # Interface principal
 def main():
     # Cabeçalho
-    st.markdown('<h1 class="main-title">💰 Dashboard v5 - Café Martins</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Análise Completa de Vendas, Custos e Rentabilidade</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">🚀 Dashboard v8 - Café Martins (MariaDB Ultra-Rápido)</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Análise Completa com Custos REAIS (Despesify) + Rentabilidade + Jogos Santa Casa | Carregamento 10-50x mais rápido!</p>', unsafe_allow_html=True)
 
     # Carregar dados
     try:
@@ -751,6 +1505,7 @@ def main():
     # Botão de reset total
     if st.sidebar.button("🔄 Reset Total", use_container_width=True):
         st.cache_data.clear()
+        st.cache_resource.clear()
         st.rerun()
 
     # Aplicar filtros
@@ -859,7 +1614,7 @@ def main():
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     # Tabs principais
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
         "📊 Visão Geral",
         "☕ Análise por Categoria",
         "📈 Análise Temporal",
@@ -869,12 +1624,109 @@ def main():
         "📑 Dados Detalhados",
         "💸 Análise de Custos",
         "📊 Rentabilidade & Margens",
-        "🎯 Break-Even Analysis"
+        "🎯 Break-Even Analysis",
+        "🎰 Jogos Santa Casa"
     ])
 
     # TAB 1 - Visão Geral
     with tab1:
         st.header("📊 Visão Geral das Vendas")
+
+        # ========== MÉTRICAS DE PERFORMANCE ==========
+        st.subheader("📊 Métricas de Performance")
+
+        # Calcular métricas de performance (passou df completo para comparações históricas)
+        metricas_perf = calcular_metricas_performance(df_filtrado, df)
+
+        if metricas_perf:
+            data_atualizacao = metricas_perf.get('data_atualizacao', 'N/A')
+            st.caption(f"📅 Dados atualizados até: {data_atualizacao}")
+
+            # Performance Semanal
+            st.subheader("📅 Performance Semanal")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**Última Semana**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_semana_atual']),
+                    delta=f"{metricas_perf['var_semana_vs_anterior']:+.1f}% vs Semana Anterior" if metricas_perf['vendas_semana_anterior'] > 0 else "Sem dados"
+                )
+
+            with col2:
+                st.markdown("**Semana Anterior**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_semana_anterior'])
+                )
+
+            with col3:
+                st.markdown("**Mesma Semana Ano Passado**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_semana_ano_passado']),
+                    delta=f"{metricas_perf['var_semana_vs_ano_passado']:+.1f}% vs SWLY" if metricas_perf['vendas_semana_ano_passado'] > 0 else "Sem dados"
+                )
+
+            st.markdown("---")
+
+            # Performance Mensal (MTD)
+            st.subheader("📆 Performance Mensal (MTD)")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown(f"**Mês em Curso (até dia {metricas_perf['dias_mes_atual']})**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_mes_atual']),
+                    delta=f"{metricas_perf['var_mes_vs_anterior']:+.1f}% vs Mês Anterior MTD" if metricas_perf['vendas_mes_anterior'] > 0 else "Sem dados"
+                )
+
+            with col2:
+                st.markdown(f"**Mês Anterior (até dia {metricas_perf['dias_mes_atual']})**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_mes_anterior'])
+                )
+
+            with col3:
+                st.markdown(f"**SMLY - Mesmo Mês Ano Passado (até dia {metricas_perf['dias_mes_atual']})**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_smly']),
+                    delta=f"{metricas_perf['var_mes_vs_ano_passado']:+.1f}% vs SMLY MTD" if metricas_perf['vendas_smly'] > 0 else "Sem dados"
+                )
+
+            st.markdown("---")
+
+            # Performance Anual
+            st.subheader("📈 Performance Anual")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**Ano em Curso (YTD)**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_ano_atual']),
+                    delta=f"{metricas_perf['var_ano_vs_ano_anterior']:+.1f}% vs Ano Anterior YTD" if metricas_perf['vendas_ano_anterior_ytd'] > 0 else "Sem dados"
+                )
+
+            with col2:
+                st.markdown("**Ano Anterior (mesma altura)**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_ano_anterior_ytd'])
+                )
+
+            with col3:
+                st.markdown("**Ano Anterior (Total)**")
+                st.metric(
+                    label="",
+                    value=formatar_moeda(metricas_perf['vendas_ano_anterior_total'])
+                )
+
+            st.markdown("---")
 
         # KPIs por categoria
         st.subheader("🏆 Performance por Categoria")
@@ -890,8 +1742,11 @@ def main():
             col = cols[idx % 4]
             with col:
                 percentual = (row['Valor'] / total_vendas) * 100
+                # Tratar icone None ou vazio
+                icone = row['Icone_Categoria'] if row['Icone_Categoria'] not in [None, 'None', ''] else '🎰'
+                label_categoria = f"{icone} {categoria}"
                 st.metric(
-                    label=f"{row['Icone_Categoria']} {categoria}",
+                    label=label_categoria,
                     value=formatar_moeda(row['Valor']),
                     delta=f"{formatar_percentagem(percentual)} do total"
                 )
@@ -903,7 +1758,8 @@ def main():
 
         with col1:
             # Gráfico de barras horizontal - Distribuição por categoria (mais legível)
-            vendas_categoria = df_filtrado.groupby('Categoria')['Valor'].sum().sort_values(ascending=True)
+            # Reutilizar dados já calculados acima para evitar novo groupby
+            vendas_categoria = resumo_categorias['Valor'].sort_values(ascending=True)
 
             fig_categoria = go.Figure(go.Bar(
                 x=vendas_categoria.values,
@@ -2039,8 +2895,19 @@ def main():
     with tab8:
         st.header("💸 Análise de Custos Operacionais")
 
-        # Calcular métricas de custo
-        metricas_financeiras = cost_manager.calcular_metricas_financeiras(df_filtrado, dias_periodo)
+        # Calcular métricas de custo (com datas para Despesify)
+        data_min_filtrado = df_filtrado['Data'].min().to_pydatetime()
+        data_max_filtrado = df_filtrado['Data'].max().to_pydatetime()
+        metricas_financeiras = cost_manager.calcular_metricas_financeiras(
+            df_filtrado, data_min_filtrado, data_max_filtrado
+        )
+
+        # Mostrar fonte dos custos operacionais
+        fonte_custos = metricas_financeiras.get('fonte_custos_operacionais', 'ESTIMADO')
+        if fonte_custos == 'REAL':
+            st.success("✅ Custos Operacionais REAIS do Despesify (desde 1/12/2025)")
+        else:
+            st.warning("⚠️ Custos Operacionais ESTIMADOS (antes de 1/12/2025 ou sem dados no Despesify)")
 
         # KPIs de Custos
         col1, col2, col3, col4 = st.columns(4)
@@ -2103,24 +2970,34 @@ def main():
 
             st.plotly_chart(fig_custos, use_container_width=True)
 
-            # Info sobre comissões
+            # Info sobre custos Santa Casa
             if comissoes_sc > 0:
-                percentagem_comissao = (comissoes_sc / metricas_financeiras.get('receita_total', 1)) * 100
-                st.info(f"💡 Comissões Santa Casa: {formatar_moeda(comissoes_sc)} ({percentagem_comissao:.1f}% das vendas)")
+                # Calcular vendas de Santa Casa para percentagem correta
+                vendas_sc = df_filtrado[df_filtrado['Is_Santa_Casa'] == True]['Valor'].sum() if 'Is_Santa_Casa' in df_filtrado.columns else 0
+                if vendas_sc > 0:
+                    percentagem_custo_sc = (comissoes_sc / vendas_sc) * 100
+                    margem_sc = ((vendas_sc - comissoes_sc) / vendas_sc) * 100
+                    st.info(f"💡 Custos Jogos Santa Casa: {formatar_moeda(comissoes_sc)} ({percentagem_custo_sc:.1f}% das vendas de jogos | Margem: {margem_sc:.1f}%)")
 
         with col2:
             st.subheader("💹 Custos Operacionais Detalhados")
 
-            resumo_custos_op = cost_manager.get_resumo_custos_operacionais()
+            # Obter resumo de custos operacionais do período (REAL ou ESTIMADO)
+            resumo_custos_op = cost_manager.get_resumo_custos_operacionais(
+                data_min_filtrado, data_max_filtrado
+            )
 
             if not resumo_custos_op.empty:
+                # Usar coluna correta dependendo da fonte
+                coluna_valor = 'Total_Periodo' if 'Total_Periodo' in resumo_custos_op.columns else 'Total_Mensal'
+
                 fig_custos_op = px.bar(
                     x=resumo_custos_op.index,
-                    y=resumo_custos_op['Total_Mensal'],
-                    title="Custos Operacionais por Categoria",
-                    labels={'x': 'Categoria', 'y': 'Custo Mensal (€)'},
-                    text=[formatar_moeda(v) for v in resumo_custos_op['Total_Mensal']],
-                    color=resumo_custos_op['Total_Mensal'],
+                    y=resumo_custos_op[coluna_valor],
+                    title=f"Custos Operacionais por Categoria ({fonte_custos})",
+                    labels={'x': 'Categoria', 'y': f'Custo do Período (€)'},
+                    text=[formatar_moeda(v) for v in resumo_custos_op[coluna_valor]],
+                    color=resumo_custos_op[coluna_valor],
                     color_continuous_scale='Reds'
                 )
 
@@ -2132,12 +3009,275 @@ def main():
         # Tabela de custos operacionais
         st.subheader("📋 Detalhamento de Custos Operacionais")
 
-        if not resumo_custos_op.empty:
-            resumo_display = resumo_custos_op.copy()
-            resumo_display['Total_Mensal'] = resumo_display['Total_Mensal'].apply(formatar_moeda)
-            resumo_display['Percentual'] = resumo_display['Percentual'].apply(lambda x: f"{x}%")
+        # Toggle para modo de edição
+        col_edit, col_info = st.columns([1, 3])
+        with col_edit:
+            modo_edicao = st.toggle("✏️ Modo Edição", key="modo_edicao_custos_op", help="Ativar para editar custos operacionais ESTIMADOS (CSV)")
 
-            st.dataframe(resumo_display, use_container_width=True)
+        with col_info:
+            if modo_edicao:
+                st.info("ℹ️ Modo Edição ativado. Edite os valores abaixo e clique em 'Guardar Alterações'")
+
+        if not resumo_custos_op.empty:
+            if modo_edicao and fonte_custos == 'ESTIMADO':
+                # MODO EDIÇÃO - Editor de custos operacionais
+                st.markdown("**✏️ Editar Custos Operacionais Mensais (CSV):**")
+
+                # Carregar CSV de custos operacionais
+                import os
+                csv_path = os.path.join('dados_custos', 'custos_operacionais.csv')
+
+                if os.path.exists(csv_path):
+                    df_custos_csv = pd.read_csv(csv_path)
+
+                    # Filtrar custos não calculados
+                    df_editavel = df_custos_csv[df_custos_csv['Tipo'] != 'Calculado'].copy()
+
+                    # Editor de dados
+                    df_editado = st.data_editor(
+                        df_editavel,
+                        use_container_width=True,
+                        num_rows="dynamic",
+                        column_config={
+                            "Categoria": st.column_config.TextColumn("Categoria", required=True),
+                            "Valor_Mensal": st.column_config.NumberColumn(
+                                "Valor Mensal (€)",
+                                min_value=0,
+                                format="€%.2f",
+                                required=True
+                            ),
+                            "Tipo": st.column_config.SelectboxColumn(
+                                "Tipo",
+                                options=["Fixo", "Variável"],
+                                required=True
+                            ),
+                            "Descricao": st.column_config.TextColumn("Descrição")
+                        },
+                        hide_index=True,
+                        key="editor_custos_op"
+                    )
+
+                    # Botões de ação
+                    col1, col2, col3 = st.columns([2, 2, 6])
+
+                    with col1:
+                        if st.button("💾 Guardar Alterações", type="primary", key="guardar_custos_op"):
+                            try:
+                                # Guardar de volta ao CSV
+                                df_editado.to_csv(csv_path, index=False)
+                                st.success("✅ Custos operacionais guardados com sucesso!")
+                                st.info("🔄 Por favor, recarregue a página (F5) para ver as alterações aplicadas.")
+                            except Exception as e:
+                                st.error(f"❌ Erro ao guardar: {e}")
+
+                    with col2:
+                        if st.button("🔄 Resetar", key="resetar_custos_op"):
+                            st.rerun()
+
+                    # Mostrar total
+                    total_editado = df_editado['Valor_Mensal'].sum()
+                    st.metric("💰 Total Mensal (Editado)", f"€{total_editado:,.2f}")
+
+                else:
+                    st.error(f"❌ Ficheiro não encontrado: {csv_path}")
+
+            elif modo_edicao and fonte_custos == 'REAL':
+                # Permitir edição de custos estimados mesmo com Despesify ativo
+                st.info("💡 **Custos REAIS do Despesify estão ativos neste período.** Você pode editar os custos operacionais abaixo que ainda não estão no Despesify (ex: rendas, ordenados, segurança social). Para editar custos que já estão no Despesify, edite diretamente no sistema Despesify.")
+
+                # Carregar CSV de custos operacionais
+                import os
+                csv_path = os.path.join('dados_custos', 'custos_operacionais.csv')
+
+                if os.path.exists(csv_path):
+                    df_custos_csv = pd.read_csv(csv_path)
+
+                    # Filtrar custos não calculados
+                    df_editavel = df_custos_csv[df_custos_csv['Tipo'] != 'Calculado'].copy()
+
+                    if not df_editavel.empty:
+                        st.markdown("**✏️ Editar Custos Operacionais Mensais (CSV):**")
+
+                        # Editor de dados
+                        df_editado = st.data_editor(
+                            df_editavel,
+                            use_container_width=True,
+                            num_rows="dynamic",
+                            column_config={
+                                "Categoria": st.column_config.TextColumn("Categoria", required=True),
+                                "Valor_Mensal": st.column_config.NumberColumn(
+                                    "Valor Mensal (€)",
+                                    min_value=0,
+                                    format="€%.2f",
+                                    required=True
+                                ),
+                                "Tipo": st.column_config.SelectboxColumn(
+                                    "Tipo",
+                                    options=["Fixo", "Variável"],
+                                    required=True
+                                ),
+                                "Descricao": st.column_config.TextColumn("Descrição")
+                            },
+                            hide_index=True,
+                            key="editor_custos_op_com_despesify"
+                        )
+
+                        # Botões de ação
+                        col1, col2, col3 = st.columns([2, 2, 6])
+
+                        with col1:
+                            if st.button("💾 Guardar Alterações", type="primary", key="guardar_custos_op_despesify"):
+                                try:
+                                    # Guardar de volta ao CSV
+                                    df_editado.to_csv(csv_path, index=False)
+                                    st.success("✅ Custos operacionais guardados com sucesso!")
+                                    st.info("🔄 Por favor, recarregue a página (F5) para ver as alterações aplicadas.")
+                                except Exception as e:
+                                    st.error(f"❌ Erro ao guardar: {e}")
+
+                        with col2:
+                            if st.button("🔄 Resetar", key="resetar_custos_op_despesify"):
+                                st.rerun()
+
+                        # Mostrar total
+                        total_editado = df_editado['Valor_Mensal'].sum()
+                        st.metric("💰 Total Mensal (Editado - CSV)", f"€{total_editado:,.2f}")
+                    else:
+                        st.info("ℹ️ Não há custos estimados no CSV para editar. Todos os custos operacionais vêm do Despesify.")
+                else:
+                    st.warning(f"⚠️ Ficheiro não encontrado: {csv_path}")
+
+                # Mostrar resumo dos custos do Despesify
+                st.markdown("---")
+                st.markdown("**📊 Custos do Despesify (não editáveis aqui):**")
+                resumo_display = resumo_custos_op.copy()
+
+                if 'Total_Periodo' in resumo_display.columns:
+                    resumo_display['Total_Periodo'] = resumo_display['Total_Periodo'].apply(formatar_moeda)
+                if 'Total_Mensal' in resumo_display.columns:
+                    resumo_display['Total_Mensal'] = resumo_display['Total_Mensal'].apply(formatar_moeda)
+
+                resumo_display['Percentual'] = resumo_display['Percentual'].apply(lambda x: f"{x}%")
+                st.dataframe(resumo_display, use_container_width=True)
+
+            else:
+                # MODO VISUALIZAÇÃO - Mostrar apenas
+                resumo_display = resumo_custos_op.copy()
+
+                # Formatar coluna de valor (pode ser Total_Periodo ou Total_Mensal)
+                if 'Total_Periodo' in resumo_display.columns:
+                    resumo_display['Total_Periodo'] = resumo_display['Total_Periodo'].apply(formatar_moeda)
+                if 'Total_Mensal' in resumo_display.columns:
+                    resumo_display['Total_Mensal'] = resumo_display['Total_Mensal'].apply(formatar_moeda)
+
+                resumo_display['Percentual'] = resumo_display['Percentual'].apply(lambda x: f"{x}%")
+
+                st.dataframe(resumo_display, use_container_width=True)
+
+        # Se tiver despesas REAIS, mostrar tabela detalhada
+        if fonte_custos == 'REAL' and 'df_custos_operacionais' in metricas_financeiras:
+            df_despesas_reais = metricas_financeiras['df_custos_operacionais']
+
+            if not df_despesas_reais.empty:
+                st.subheader("📄 Despesas Reais do Despesify (Detalhado)")
+
+                # Preparar tabela para exibição
+                df_display = df_despesas_reais[
+                    ['Data', 'Descrição', 'Categoria_Dashboard', 'Valor_Total', 'IVA', 'Valor_Sem_IVA', 'NIF_Fornecedor']
+                ].copy()
+
+                df_display['Data'] = pd.to_datetime(df_display['Data']).dt.strftime('%d/%m/%Y')
+                df_display['Valor_Total'] = df_display['Valor_Total'].apply(formatar_moeda)
+                df_display['IVA'] = df_display['IVA'].apply(formatar_moeda)
+                df_display['Valor_Sem_IVA'] = df_display['Valor_Sem_IVA'].apply(formatar_moeda)
+
+                st.dataframe(df_display, use_container_width=True, height=400)
+
+        # NOVA SEÇÃO: Todas as despesas do Despesify (incluindo compras de mercadorias)
+        if cost_manager.despesify_loader:
+            st.markdown("---")
+            st.subheader("🏪 Todas as Despesas do Despesify (Fornecedores)")
+
+            try:
+                # Carregar TODAS as despesas (operacionais + produtos)
+                resumo_completo = cost_manager.despesify_loader.get_resumo_despesas(
+                    data_min_filtrado, data_max_filtrado
+                )
+
+                if resumo_completo and 'df_completo' in resumo_completo:
+                    df_todas_despesas = resumo_completo['df_completo']
+
+                    if not df_todas_despesas.empty:
+                        # KPIs resumo
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            st.metric(
+                                "💰 Total Despesas",
+                                formatar_moeda(resumo_completo['total_despesas'])
+                            )
+
+                        with col2:
+                            st.metric(
+                                "🏢 Custos Operacionais",
+                                formatar_moeda(resumo_completo['total_operacionais']),
+                                help="Despesas que vão para custos operacionais"
+                            )
+
+                        with col3:
+                            st.metric(
+                                "📦 Compras Mercadorias",
+                                formatar_moeda(resumo_completo['total_produtos']),
+                                help="Compras de produtos (já nos custos de produtos CSV)"
+                            )
+
+                        with col4:
+                            st.metric(
+                                "📄 Nº Despesas",
+                                resumo_completo['num_despesas']
+                            )
+
+                        # Tabela completa de fornecedores
+                        st.markdown("**📋 Detalhes por Fornecedor:**")
+
+                        df_fornecedores = df_todas_despesas[[
+                            'Data', 'Descrição', 'Tipo_Custo', 'Categoria_Dashboard',
+                            'Valor_Total', 'IVA', 'Valor_Sem_IVA', 'NIF_Fornecedor'
+                        ]].copy()
+
+                        df_fornecedores['Data'] = pd.to_datetime(df_fornecedores['Data']).dt.strftime('%d/%m/%Y')
+                        df_fornecedores['Valor_Total'] = df_fornecedores['Valor_Total'].apply(formatar_moeda)
+                        df_fornecedores['IVA'] = df_fornecedores['IVA'].apply(formatar_moeda)
+                        df_fornecedores['Valor_Sem_IVA'] = df_fornecedores['Valor_Sem_IVA'].apply(formatar_moeda)
+
+                        # Renomear colunas para melhor visualização
+                        df_fornecedores.rename(columns={
+                            'Tipo_Custo': 'Tipo',
+                            'Categoria_Dashboard': 'Categoria'
+                        }, inplace=True)
+
+                        st.dataframe(df_fornecedores, use_container_width=True, height=400)
+
+                        # Gráfico de despesas por fornecedor
+                        st.markdown("**📊 Fornecedores:**")
+
+                        top_fornecedores = df_todas_despesas.groupby('Descrição')['Valor_Total'].sum().sort_values(ascending=False)
+
+                        fig_fornecedores = px.bar(
+                            x=top_fornecedores.index,
+                            y=top_fornecedores.values,
+                            title=f"Todos os Fornecedores ({len(top_fornecedores)}) - Despesify",
+                            labels={'x': 'Fornecedor', 'y': 'Total (€)'},
+                            text=[formatar_moeda(v) for v in top_fornecedores.values],
+                            color=top_fornecedores.values,
+                            color_continuous_scale='Blues'
+                        )
+
+                        fig_fornecedores.update_layout(height=400, showlegend=False, xaxis_tickangle=-45)
+                        st.plotly_chart(fig_fornecedores, use_container_width=True)
+
+            except Exception as e:
+                st.warning(f"⚠️ Erro ao carregar despesas completas: {e}")
 
         # Custos por categoria de produto
         st.markdown("---")
@@ -2159,6 +3299,168 @@ def main():
             fig_custos_cat.update_layout(height=400, showlegend=False)
             st.plotly_chart(fig_custos_cat, use_container_width=True)
 
+        # ========== CONSULTA DE FATURAS (DESPESIFY) ==========
+        st.markdown("---")
+        st.subheader("🧾 Consulta de Faturas (Despesify)")
+
+        if not cost_manager.despesify_loader:
+            st.warning("⚠️ Despesify não está disponível. Esta funcionalidade requer conexão com a base de dados Despesify.")
+        else:
+            st.markdown("""
+            Consulte faturas registadas no Despesify com informação detalhada do QR Code AT.
+
+            **ℹ️ Nota:** O QR Code da Autoridade Tributária contém apenas **totais** e **breakdown de IVA**.
+            **Não contém** descrição linha a linha dos produtos comprados.
+            """)
+
+            # Barra de pesquisa
+            st.subheader("🔍 Pesquisar Fatura")
+
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+
+            with col1:
+                pesquisa_doc = st.text_input(
+                    "Número do Documento",
+                    placeholder="Ex: FS 2025021701A/80387",
+                    help="Pesquise por número completo ou parcial"
+                )
+
+            with col2:
+                pesquisa_nif = st.text_input(
+                    "NIF Fornecedor",
+                    placeholder="Ex: 517077582",
+                    help="NIF do emitente da fatura"
+                )
+
+            with col3:
+                pesquisa_nome = st.text_input(
+                    "Nome Fornecedor",
+                    placeholder="Ex: Sonyve",
+                    help="Nome ou parte do nome"
+                )
+
+            with col4:
+                st.markdown("<br>", unsafe_allow_html=True)
+                pesquisar = st.button("🔍 Pesquisar", type="primary", use_container_width=True)
+
+            # Resultados da pesquisa
+            if pesquisar or pesquisa_doc or pesquisa_nif or pesquisa_nome:
+                with st.spinner("Pesquisando faturas..."):
+                    resultados = cost_manager.despesify_loader.pesquisar_fatura(
+                        numero_documento=pesquisa_doc if pesquisa_doc else None,
+                        nif_fornecedor=pesquisa_nif if pesquisa_nif else None,
+                        descricao=pesquisa_nome if pesquisa_nome else None
+                    )
+
+                    if resultados.empty:
+                        st.info("📭 Nenhuma fatura encontrada com os critérios especificados.")
+                    else:
+                        st.success(f"✅ Encontradas {len(resultados)} fatura(s)")
+
+                        # Tabela de resultados
+                        st.subheader("📋 Resultados")
+
+                        df_display = resultados[[
+                            'expense_date', 'numero_documento', 'description',
+                            'nif_emitente', 'amount', 'vat_amount', 'atcud'
+                        ]].copy()
+
+                        df_display.columns = [
+                            'Data', 'Nº Documento', 'Fornecedor',
+                            'NIF', 'Total (€)', 'IVA (€)', 'ATCUD'
+                        ]
+
+                        df_display['Data'] = pd.to_datetime(df_display['Data']).dt.strftime('%d/%m/%Y')
+                        df_display['Total (€)'] = df_display['Total (€)'].apply(lambda x: f"€{x:,.2f}")
+                        df_display['IVA (€)'] = df_display['IVA (€)'].apply(lambda x: f"€{x:,.2f}" if pd.notna(x) else "N/A")
+
+                        st.dataframe(df_display, use_container_width=True, height=300)
+
+                        # Seleção de fatura para detalhes
+                        st.markdown("---")
+                        st.subheader("📄 Detalhes da Fatura")
+
+                        numero_selecionado = st.selectbox(
+                            "Selecione uma fatura para ver detalhes:",
+                            options=resultados['numero_documento'].tolist(),
+                            format_func=lambda x: f"{x} - {resultados[resultados['numero_documento']==x]['description'].iloc[0]}"
+                        )
+
+                        if numero_selecionado:
+                            detalhes = cost_manager.despesify_loader.get_detalhes_fatura(numero_selecionado)
+
+                            if detalhes:
+                                # Informações principais
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    st.markdown("### 📌 Informações Principais")
+                                    st.markdown(f"**Fornecedor:** {detalhes.get('description', 'N/A')}")
+                                    st.markdown(f"**NIF Emitente:** {detalhes.get('nif_emitente', 'N/A')}")
+                                    st.markdown(f"**NIF Adquirente:** {detalhes.get('nif_adquirente', 'N/A')}")
+                                    st.markdown(f"**Data:** {pd.to_datetime(detalhes.get('expense_date')).strftime('%d/%m/%Y') if detalhes.get('expense_date') else 'N/A'}")
+                                    st.markdown(f"**Nº Documento:** {detalhes.get('numero_documento', 'N/A')}")
+                                    st.markdown(f"**ATCUD:** {detalhes.get('atcud', 'N/A')}")
+                                    st.markdown(f"**Método Pagamento:** {detalhes.get('payment_method', 'N/A')}")
+
+                                with col2:
+                                    st.markdown("### 💰 Valores")
+                                    st.metric("Total", f"€{detalhes.get('amount', 0):,.2f}")
+                                    st.metric("Base Tributável", f"€{detalhes.get('base_tributavel', 0):,.2f}" if detalhes.get('base_tributavel') else "N/A")
+                                    st.metric("IVA Total", f"€{detalhes.get('vat_amount', 0):,.2f}" if detalhes.get('vat_amount') else "N/A")
+
+                                # Breakdown de IVA
+                                if detalhes.get('linhas_iva'):
+                                    st.markdown("---")
+                                    st.markdown("### 📊 Breakdown de IVA (Dados do QR Code)")
+
+                                    linhas_iva = detalhes['linhas_iva']
+
+                                    # Criar DataFrame para linhas de IVA
+                                    df_iva = pd.DataFrame(linhas_iva)
+
+                                    if not df_iva.empty:
+                                        # Renomear colunas
+                                        if 'base_tributavel' in df_iva.columns:
+                                            df_iva_display = df_iva[[
+                                                'base_tributavel', 'taxa_iva_percentagem', 'valor_iva'
+                                            ]].copy()
+
+                                            df_iva_display.columns = [
+                                                'Base Tributável (€)', 'Taxa IVA (%)', 'Valor IVA (€)'
+                                            ]
+
+                                            df_iva_display['Base Tributável (€)'] = df_iva_display['Base Tributável (€)'].apply(lambda x: f"€{x:,.2f}")
+                                            df_iva_display['Taxa IVA (%)'] = df_iva_display['Taxa IVA (%)'].apply(lambda x: f"{x:.2f}%")
+                                            df_iva_display['Valor IVA (€)'] = df_iva_display['Valor IVA (€)'].apply(lambda x: f"€{x:,.2f}")
+
+                                            st.dataframe(df_iva_display, use_container_width=True, hide_index=True)
+
+                                            # Gráfico de IVA
+                                            fig_iva = go.Figure(data=[go.Pie(
+                                                labels=[f"{row['Taxa IVA (%)']} ({row['Base Tributável (€)']})" for _, row in df_iva_display.iterrows()],
+                                                values=[float(row['base_tributavel']) for row in linhas_iva],
+                                                hole=0.4,
+                                                marker=dict(colors=['#4ecdc4', '#ff6b6b', '#ffd700', '#95e1d3'])
+                                            )])
+
+                                            fig_iva.update_layout(
+                                                title="Distribuição de Base Tributável por Taxa IVA",
+                                                showlegend=True,
+                                                height=400
+                                            )
+
+                                            st.plotly_chart(fig_iva, use_container_width=True)
+
+                                        st.markdown("---")
+                                        st.info("""
+                                        ℹ️ **Sobre os dados do QR Code AT:**
+                                        - O QR Code apenas contém **totais** e **breakdown de taxas de IVA**
+                                        - **Não inclui** detalhes linha a linha dos produtos/serviços
+                                        - Para informação detalhada, consulte a fatura original em papel/PDF
+                                        """)
+                            else:
+                                st.error("❌ Não foi possível obter os detalhes da fatura.")
     # TAB 9 - Rentabilidade & Margens
     with tab9:
         st.header("📊 Rentabilidade & Análise de Margens")
@@ -2300,6 +3602,7 @@ def main():
                         f"{idx}. **{produto}**: {formatar_moeda(row['Lucro_Bruto'])} "
                         f"({row['Margem_Bruta_Pct']:.1f}% margem)"
                     )
+
 
     # TAB 10 - Break-Even Analysis
     with tab10:
@@ -2552,16 +3855,10 @@ def main():
             - Continue monitorando custos e otimizando margens
             """)
 
-    # Footer
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-
-    st.markdown("""
-        <div style="text-align: center; color: #666; padding: 20px;">
-            <p><strong>Dashboard v5 - Café Martins com Gestão de Custos</strong> | Desenvolvido com Streamlit & Plotly</p>
-            <p>Análise Completa: Vendas + Custos + Rentabilidade + Break-Even</p>
-            <p>Última atualização: {}</p>
-        </div>
-    """.format(datetime.now().strftime('%d/%m/%Y %H:%M:%S')), unsafe_allow_html=True)
+    # TAB 11 - Jogos Santa Casa
+    with tab11:
+        df_jogos = carregar_dados_santa_casa()
+        pagina_jogos_santa_casa(df_jogos, data_inicio, data_fim)
 
 
 if __name__ == '__main__':

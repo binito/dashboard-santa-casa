@@ -1,0 +1,1276 @@
+"""
+Dashboard Interativo de Análise Completa - Jogos Santa Casa
+Dados completos com remunerações e prémios transparentes
+Utilize: streamlit run dashboard_santa_casa.py --server.port 8503
+"""
+
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
+from pathlib import Path
+from datetime import datetime, timedelta
+import warnings
+
+# Tentar importar bibliotecas para exportação (opcionais)
+try:
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.utils.dataframe import dataframe_to_rows
+    EXCEL_AVAILABLE = True
+except ImportError:
+    EXCEL_AVAILABLE = False
+
+warnings.filterwarnings('ignore')
+
+# Configuração da página
+st.set_page_config(
+    page_title="Dashboard Santa Casa - Análise Completa",
+    page_icon="🎲",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# CSS customizado
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 3rem;
+        font-weight: bold;
+        text-align: center;
+        color: #1f77b4;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #1f77b4;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+@st.cache_data
+def carregar_dados():
+    """Carrega e processa os dados do arquivo CSV."""
+    data_file = Path('/home/jorge/Documentos/Santa casa/dados/dados.csv')
+
+    if not data_file.exists():
+        st.error(f"Arquivo não encontrado: {data_file}")
+        return None
+
+    # Ler CSV com separador ;
+    try:
+        df = pd.read_csv(
+            data_file,
+            sep=';',
+            encoding='utf-8',
+            decimal=','
+        )
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return None
+
+    # Converter Data para datetime
+    df['Data'] = pd.to_datetime(df['Data'], format='%d-%m-%Y', errors='coerce')
+
+    # Separar prestação de contas
+    df_prestacao = df[df['Categoria'] == 'PRESTAÇÃO DE CONTAS'].copy()
+
+    # Remover linhas de PRESTAÇÃO DE CONTAS dos dados principais (são apenas resumos)
+    df = df[df['Categoria'] != 'PRESTAÇÃO DE CONTAS'].copy()
+
+    # Converter colunas numéricas
+    numeric_cols = ['Qt Maços', 'Vendas ilíquidas (€)', 'Remunerações (€)', 'Prémios (€)', 'Valor (€)']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+    # Adicionar colunas temporais
+    df['Ano'] = df['Data'].dt.year
+    df['Mes'] = df['Data'].dt.month
+    df['Mes_Nome'] = df['Data'].dt.strftime('%B')
+    df['Semana_Ano'] = df['Data'].dt.isocalendar().week
+    df['Trimestre'] = df['Data'].dt.quarter
+    df['Dia_Semana'] = df['Data'].dt.day_name()
+    df['Ano_Semana'] = df['Ano'].astype(str) + '-S' + df['Semana_Ano'].astype(str).str.zfill(2)
+    df['Ano_Mes'] = df['Data'].dt.to_period('M').astype(str)
+
+    # Processar prestação de contas também
+    if len(df_prestacao) > 0:
+        numeric_cols = ['Valor (€)']
+        for col in numeric_cols:
+            if col in df_prestacao.columns:
+                df_prestacao[col] = pd.to_numeric(df_prestacao[col], errors='coerce').fillna(0)
+
+        df_prestacao['Ano'] = df_prestacao['Data'].dt.year
+        df_prestacao['Mes'] = df_prestacao['Data'].dt.month
+        df_prestacao['Ano_Mes'] = df_prestacao['Data'].dt.to_period('M').astype(str)
+
+    # Ordenar por data
+    df = df.sort_values('Data')
+
+    return df, df_prestacao
+
+
+def formatar_euro(valor):
+    """Formata valor em euros."""
+    return f"€{valor:,.2f}".replace(',', ' ').replace('.', ',').replace(' ', '.')
+
+
+def criar_grafico_vendas_tempo(df, periodo='Mes'):
+    """Cria gráfico de evolução de vendas ao longo do tempo."""
+    col_periodo = 'Ano_Mes' if periodo == 'Mes' else 'Ano_Semana'
+
+    vendas_periodo = df.groupby(col_periodo).agg({
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Prémios (€)': 'sum',
+        'Valor (€)': 'sum'
+    }).reset_index()
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=vendas_periodo[col_periodo],
+        y=vendas_periodo['Vendas ilíquidas (€)'],
+        name='Vendas Ilíquidas',
+        mode='lines+markers',
+        line=dict(color='#1f77b4', width=2)
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=vendas_periodo[col_periodo],
+        y=vendas_periodo['Remunerações (€)'],
+        name='Remunerações',
+        mode='lines+markers',
+        line=dict(color='#2ca02c', width=2)
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=vendas_periodo[col_periodo],
+        y=vendas_periodo['Valor (€)'],
+        name='Valor Líquido',
+        mode='lines+markers',
+        line=dict(color='#ff7f0e', width=2)
+    ))
+
+    fig.update_layout(
+        title=f"Evolução de Vendas por {periodo}",
+        xaxis_title=periodo,
+        yaxis_title="Valor (€)",
+        hovermode='x unified',
+        height=500
+    )
+
+    return fig
+
+
+def criar_grafico_categoria(df):
+    """Cria gráfico de vendas por categoria."""
+    vendas_cat = df.groupby('Categoria').agg({
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Valor (€)': 'sum'
+    }).reset_index()
+
+    vendas_cat = vendas_cat.sort_values('Vendas ilíquidas (€)', ascending=True)
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        y=vendas_cat['Categoria'],
+        x=vendas_cat['Vendas ilíquidas (€)'],
+        name='Vendas Ilíquidas',
+        orientation='h',
+        marker_color='#1f77b4'
+    ))
+
+    fig.add_trace(go.Bar(
+        y=vendas_cat['Categoria'],
+        x=vendas_cat['Remunerações (€)'],
+        name='Remunerações',
+        orientation='h',
+        marker_color='#2ca02c'
+    ))
+
+    fig.update_layout(
+        title="Vendas e Remunerações por Categoria",
+        xaxis_title="Valor (€)",
+        yaxis_title="Categoria",
+        barmode='group',
+        height=400
+    )
+
+    return fig
+
+
+def criar_grafico_jogo(df, top_n=10):
+    """Cria gráfico de top jogos."""
+    vendas_jogo = df.groupby('Jogo').agg({
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Valor (€)': 'sum'
+    }).reset_index()
+
+    vendas_jogo = vendas_jogo.sort_values('Vendas ilíquidas (€)', ascending=False).head(top_n)
+
+    fig = px.bar(
+        vendas_jogo,
+        x='Jogo',
+        y=['Vendas ilíquidas (€)', 'Remunerações (€)', 'Valor (€)'],
+        title=f"Top {top_n} Jogos",
+        barmode='group',
+        height=500
+    )
+
+    fig.update_layout(
+        xaxis_title="Jogo",
+        yaxis_title="Valor (€)",
+        legend_title="Métrica"
+    )
+
+    return fig
+
+
+def criar_grafico_raspadinhas(df):
+    """Cria análise específica das raspadinhas."""
+    raspadinhas = df[df['Jogo'] == 'Raspadinha'].copy()
+
+    if len(raspadinhas) == 0:
+        return None
+
+    # Análise por jogo rececionado
+    analise_jogo = raspadinhas.groupby('Jogo Rececionado').agg({
+        'Qt Maços': 'sum',
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Prémios (€)': 'sum',
+        'Valor (€)': 'sum'
+    }).reset_index()
+
+    analise_jogo = analise_jogo.sort_values('Vendas ilíquidas (€)', ascending=False).head(15)
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=analise_jogo['Jogo Rececionado'],
+        y=analise_jogo['Vendas ilíquidas (€)'],
+        name='Vendas Ilíquidas',
+        marker_color='#1f77b4'
+    ))
+
+    fig.add_trace(go.Bar(
+        x=analise_jogo['Jogo Rececionado'],
+        y=analise_jogo['Prémios (€)'],
+        name='Prémios Pagos',
+        marker_color='#d62728'
+    ))
+
+    fig.add_trace(go.Bar(
+        x=analise_jogo['Jogo Rececionado'],
+        y=analise_jogo['Valor (€)'],
+        name='Valor Líquido',
+        marker_color='#2ca02c'
+    ))
+
+    fig.update_layout(
+        title="Análise de Raspadinhas por Jogo Rececionado (Top 15)",
+        xaxis_title="Jogo Rececionado",
+        yaxis_title="Valor (€)",
+        barmode='group',
+        height=500
+    )
+
+    return fig
+
+
+def criar_analise_macos(df):
+    """Cria análise de maços de raspadinhas."""
+    raspadinhas = df[df['Jogo'] == 'Raspadinha'].copy()
+
+    if len(raspadinhas) == 0:
+        return None
+
+    # Filtrar apenas jogos com maços comprados
+    macos_comprados = raspadinhas[raspadinhas['Qt Maços'] > 0].copy()
+
+    if len(macos_comprados) == 0:
+        return None
+
+    # Análise por jogo rececionado
+    analise = macos_comprados.groupby('Jogo Rececionado').agg({
+        'Qt Maços': 'sum',
+        'Vendas ilíquidas (€)': 'sum',
+        'Valor (€)': 'sum'
+    }).reset_index()
+
+    analise['Média por Maço'] = analise['Valor (€)'] / analise['Qt Maços']
+    analise = analise.sort_values('Qt Maços', ascending=False)
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=('Quantidade de Maços por Jogo', 'Rentabilidade Média por Maço'),
+        specs=[[{'type': 'bar'}, {'type': 'bar'}]]
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=analise['Jogo Rececionado'],
+            y=analise['Qt Maços'],
+            name='Maços Comprados',
+            marker_color='#1f77b4'
+        ),
+        row=1, col=1
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=analise['Jogo Rececionado'],
+            y=analise['Média por Maço'],
+            name='€ por Maço',
+            marker_color='#2ca02c'
+        ),
+        row=1, col=2
+    )
+
+    fig.update_layout(
+        title="Análise de Maços de Raspadinhas",
+        height=500,
+        showlegend=False
+    )
+
+    fig.update_xaxes(title_text="Jogo Rececionado", row=1, col=1)
+    fig.update_xaxes(title_text="Jogo Rececionado", row=1, col=2)
+    fig.update_yaxes(title_text="Quantidade", row=1, col=1)
+    fig.update_yaxes(title_text="Valor (€)", row=1, col=2)
+
+    return fig
+
+
+def criar_grafico_dia_semana(df):
+    """Cria gráfico de vendas por dia da semana."""
+    ordem_dias = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    nomes_pt = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+
+    vendas_dia = df.groupby('Dia_Semana').agg({
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Valor (€)': 'sum'
+    }).reindex(ordem_dias).reset_index()
+
+    vendas_dia['Dia_PT'] = nomes_pt
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=vendas_dia['Dia_PT'],
+        y=vendas_dia['Vendas ilíquidas (€)'],
+        name='Vendas Ilíquidas',
+        marker_color='#1f77b4'
+    ))
+
+    fig.add_trace(go.Bar(
+        x=vendas_dia['Dia_PT'],
+        y=vendas_dia['Remunerações (€)'],
+        name='Remunerações',
+        marker_color='#2ca02c'
+    ))
+
+    fig.update_layout(
+        title="Vendas por Dia da Semana",
+        xaxis_title="Dia da Semana",
+        yaxis_title="Valor (€)",
+        barmode='group',
+        height=400
+    )
+
+    return fig
+
+
+def criar_tabela_resumo(df):
+    """Cria tabela resumo por categoria e jogo."""
+    resumo = df.groupby(['Categoria', 'Jogo']).agg({
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Prémios (€)': 'sum',
+        'Valor (€)': 'sum',
+        'Data': 'count'
+    }).reset_index()
+
+    resumo.columns = ['Categoria', 'Jogo', 'Vendas Ilíquidas', 'Remunerações', 'Prémios Pagos', 'Valor Líquido', 'Nº Transações']
+
+    # Calcular percentagens
+    resumo['% Remuneração'] = (resumo['Remunerações'] / resumo['Vendas Ilíquidas'] * 100).round(2)
+    resumo['% Prémios'] = (resumo['Prémios Pagos'] / resumo['Vendas Ilíquidas'] * 100).round(2)
+    resumo['Margem %'] = (resumo['Valor Líquido'] / resumo['Vendas Ilíquidas'] * 100).round(2)
+
+    resumo = resumo.sort_values('Vendas Ilíquidas', ascending=False)
+
+    return resumo
+
+
+def exportar_excel(df):
+    """Exporta dados para Excel com formatação."""
+    if not EXCEL_AVAILABLE:
+        st.warning("Biblioteca openpyxl não disponível. Instalando...")
+        return None
+
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Criar resumo
+        resumo = criar_tabela_resumo(df)
+        resumo.to_excel(writer, sheet_name='Resumo por Jogo', index=False)
+
+        # Vendas por mês
+        vendas_mes = df.groupby('Ano_Mes').agg({
+            'Vendas ilíquidas (€)': 'sum',
+            'Remunerações (€)': 'sum',
+            'Prémios (€)': 'sum',
+            'Valor (€)': 'sum'
+        }).reset_index()
+        vendas_mes.to_excel(writer, sheet_name='Vendas Mensais', index=False)
+
+        # Análise de raspadinhas
+        raspadinhas = df[df['Jogo'] == 'Raspadinha'].copy()
+        if len(raspadinhas) > 0:
+            analise_rasp = raspadinhas.groupby('Jogo Rececionado').agg({
+                'Qt Maços': 'sum',
+                'Vendas ilíquidas (€)': 'sum',
+                'Remunerações (€)': 'sum',
+                'Prémios (€)': 'sum',
+                'Valor (€)': 'sum'
+            }).reset_index()
+            analise_rasp.to_excel(writer, sheet_name='Raspadinhas', index=False)
+
+        # Dados completos
+        df_export = df.drop(columns=['Ano', 'Mes', 'Semana_Ano', 'Trimestre'], errors='ignore')
+        df_export.to_excel(writer, sheet_name='Dados Completos', index=False)
+
+    output.seek(0)
+    return output
+
+
+# ============= PÁGINAS =============
+
+def pagina_visao_geral(df):
+    """Página Visão Geral."""
+    st.subheader("Evolução Temporal")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        periodo = st.radio("Período", ["Mes", "Semana"], horizontal=True)
+
+    fig_tempo = criar_grafico_vendas_tempo(df, periodo)
+    st.plotly_chart(fig_tempo, use_container_width=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Vendas por Categoria")
+        fig_cat = criar_grafico_categoria(df)
+        st.plotly_chart(fig_cat, use_container_width=True)
+
+    with col2:
+        st.subheader("Distribuição por Dia da Semana")
+        fig_dia = criar_grafico_dia_semana(df)
+        st.plotly_chart(fig_dia, use_container_width=True)
+
+
+def pagina_por_categoria(df):
+    """Página Análise por Categoria."""
+    st.subheader("Análise por Categoria")
+
+    # Resumo por categoria
+    resumo_cat = df.groupby('Categoria').agg({
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Prémios (€)': 'sum',
+        'Valor (€)': 'sum',
+        'Data': 'count'
+    }).reset_index()
+
+    resumo_cat.columns = ['Categoria', 'Vendas Ilíquidas', 'Remunerações', 'Prémios', 'Valor Líquido', 'Transações']
+    resumo_cat['Margem %'] = (resumo_cat['Valor Líquido'] / resumo_cat['Vendas Ilíquidas'] * 100).round(2)
+    resumo_cat = resumo_cat.sort_values('Vendas Ilíquidas', ascending=False)
+
+    st.dataframe(resumo_cat, use_container_width=True, hide_index=True)
+
+    # Gráfico de pizza
+    fig_pizza = px.pie(
+        resumo_cat,
+        values='Vendas Ilíquidas',
+        names='Categoria',
+        title='Distribuição de Vendas por Categoria',
+        height=500
+    )
+    st.plotly_chart(fig_pizza, use_container_width=True)
+
+
+def pagina_por_jogo(df):
+    """Página Análise por Jogo."""
+    st.subheader("Análise por Jogo")
+
+    col1, col2 = st.columns([1, 3])
+
+    with col1:
+        top_n = st.slider("Top N Jogos", 5, 20, 10)
+
+    fig_jogo = criar_grafico_jogo(df, top_n)
+    st.plotly_chart(fig_jogo, use_container_width=True)
+
+    # Tabela resumo
+    st.subheader("Resumo Detalhado por Jogo")
+    resumo = criar_tabela_resumo(df)
+    st.dataframe(resumo, use_container_width=True, hide_index=True)
+
+
+def pagina_raspadinhas(df):
+    """Página Análise de Raspadinhas."""
+    st.subheader("Análise Específica de Raspadinhas")
+
+    raspadinhas = df[df['Jogo'] == 'Raspadinha']
+
+    if len(raspadinhas) == 0:
+        st.info("Nenhum dado de raspadinhas encontrado no período selecionado.")
+    else:
+        # KPIs de raspadinhas
+        col1, col2, col3, col4 = st.columns(4)
+
+        total_macos = raspadinhas['Qt Maços'].sum()
+        vendas_rasp = raspadinhas['Vendas ilíquidas (€)'].sum()
+        premios_rasp = raspadinhas['Prémios (€)'].sum()
+        liquido_rasp = raspadinhas['Valor (€)'].sum()
+
+        with col1:
+            st.metric("Total de Maços", f"{int(total_macos)}")
+
+        with col2:
+            st.metric("Vendas", formatar_euro(vendas_rasp))
+
+        with col3:
+            st.metric("Prémios Pagos", formatar_euro(premios_rasp))
+
+        with col4:
+            st.metric("Valor Líquido", formatar_euro(liquido_rasp))
+
+        # Gráfico de raspadinhas
+        fig_rasp = criar_grafico_raspadinhas(df)
+        if fig_rasp:
+            st.plotly_chart(fig_rasp, use_container_width=True)
+
+        # Análise de maços
+        st.subheader("Análise de Maços Comprados")
+        fig_macos = criar_analise_macos(df)
+        if fig_macos:
+            st.plotly_chart(fig_macos, use_container_width=True)
+        else:
+            st.info("Nenhum maço comprado no período selecionado.")
+
+        # Tabela detalhada de raspadinhas
+        st.subheader("Detalhes por Jogo Rececionado")
+
+        analise_rasp = raspadinhas.groupby('Jogo Rececionado').agg({
+            'Qt Maços': 'sum',
+            'Vendas ilíquidas (€)': 'sum',
+            'Remunerações (€)': 'sum',
+            'Prémios (€)': 'sum',
+            'Valor (€)': 'sum',
+            'Data': 'count'
+        }).reset_index()
+
+        analise_rasp.columns = ['Jogo Rececionado', 'Maços', 'Vendas', 'Remunerações', 'Prémios', 'Valor Líquido', 'Transações']
+        analise_rasp = analise_rasp.sort_values('Vendas', ascending=False)
+
+        st.dataframe(analise_rasp, use_container_width=True, hide_index=True)
+
+
+def pagina_temporal(df):
+    """Página Análise Temporal."""
+    st.subheader("Análise Temporal Detalhada")
+
+    # Seletor de agrupamento
+    col1, col2 = st.columns([1, 3])
+
+    with col1:
+        agrupamento = st.selectbox("Agrupar por", ["Mês", "Semana", "Dia da Semana", "Trimestre"])
+
+    # Mapear seleção para coluna
+    mapa_agrupamento = {
+        "Mês": "Ano_Mes",
+        "Semana": "Ano_Semana",
+        "Dia da Semana": "Dia_Semana",
+        "Trimestre": "Trimestre"
+    }
+
+    col_grupo = mapa_agrupamento[agrupamento]
+
+    vendas_temporal = df.groupby(col_grupo).agg({
+        'Vendas ilíquidas (€)': 'sum',
+        'Remunerações (€)': 'sum',
+        'Prémios (€)': 'sum',
+        'Valor (€)': 'sum',
+        'Data': 'count'
+    }).reset_index()
+
+    vendas_temporal.columns = [agrupamento, 'Vendas Ilíquidas', 'Remunerações', 'Prémios', 'Valor Líquido', 'Transações']
+
+    st.dataframe(vendas_temporal, use_container_width=True, hide_index=True)
+
+    # Gráfico de barras empilhadas
+    fig_temporal = go.Figure()
+
+    fig_temporal.add_trace(go.Bar(
+        x=vendas_temporal[agrupamento],
+        y=vendas_temporal['Vendas Ilíquidas'],
+        name='Vendas Ilíquidas',
+        marker_color='#1f77b4'
+    ))
+
+    fig_temporal.add_trace(go.Bar(
+        x=vendas_temporal[agrupamento],
+        y=vendas_temporal['Remunerações'],
+        name='Remunerações',
+        marker_color='#2ca02c'
+    ))
+
+    fig_temporal.add_trace(go.Bar(
+        x=vendas_temporal[agrupamento],
+        y=vendas_temporal['Prémios'],
+        name='Prémios',
+        marker_color='#d62728'
+    ))
+
+    fig_temporal.update_layout(
+        title=f"Análise por {agrupamento}",
+        xaxis_title=agrupamento,
+        yaxis_title="Valor (€)",
+        barmode='group',
+        height=500
+    )
+
+    st.plotly_chart(fig_temporal, use_container_width=True)
+
+
+def pagina_premios(df):
+    """Página Análise de Prémios."""
+    st.subheader("💰 Análise de Prémios")
+
+    # KPIs principais
+    col1, col2, col3, col4 = st.columns(4)
+
+    total_premios = df['Prémios (€)'].sum()
+    total_vendas = df['Vendas ilíquidas (€)'].sum()
+    total_remuneracoes = df['Remunerações (€)'].sum()
+
+    with col1:
+        st.metric("Total Prémios Pagos", formatar_euro(total_premios))
+
+    with col2:
+        if total_vendas > 0:
+            rtp = (total_premios / total_vendas * 100)
+            st.metric("RTP (Return to Player)", f"{rtp:.2f}%")
+        else:
+            st.metric("RTP (Return to Player)", "N/A")
+
+    with col3:
+        if total_vendas > 0:
+            taxa_retencao = 100 - (total_premios / total_vendas * 100)
+            st.metric("Taxa de Retenção", f"{taxa_retencao:.2f}%")
+        else:
+            st.metric("Taxa de Retenção", "N/A")
+
+    with col4:
+        if total_remuneracoes > 0:
+            razao = total_premios / total_remuneracoes
+            st.metric("Prémios / Remunerações", f"{razao:.2f}x")
+        else:
+            st.metric("Prémios / Remunerações", "N/A")
+
+    st.divider()
+
+    # Top 10 Jogos com mais prémios
+    st.subheader("Top 10 Jogos - Prémios Pagos")
+
+    premios_jogo = df.groupby('Jogo').agg({
+        'Prémios (€)': 'sum',
+        'Vendas ilíquidas (€)': 'sum',
+        'Valor (€)': 'sum'
+    }).reset_index()
+
+    premios_jogo['RTP %'] = (premios_jogo['Prémios (€)'] / premios_jogo['Vendas ilíquidas (€)'] * 100).round(2)
+    premios_jogo = premios_jogo.sort_values('Prémios (€)', ascending=False).head(10)
+
+    # Gráfico de barras
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=premios_jogo['Jogo'],
+        y=premios_jogo['Prémios (€)'],
+        name='Prémios Pagos',
+        marker_color='#d62728'
+    ))
+
+    fig.update_layout(
+        title="Top 10 Jogos - Prémios Pagos",
+        xaxis_title="Jogo",
+        yaxis_title="Prémios (€)",
+        height=500
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Tabela detalhada
+    st.dataframe(premios_jogo, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Prémios por Categoria
+    st.subheader("Prémios por Categoria")
+
+    premios_cat = df.groupby('Categoria').agg({
+        'Prémios (€)': 'sum',
+        'Vendas ilíquidas (€)': 'sum'
+    }).reset_index()
+
+    premios_cat['RTP %'] = (premios_cat['Prémios (€)'] / premios_cat['Vendas ilíquidas (€)'] * 100).round(2)
+    premios_cat = premios_cat.sort_values('Prémios (€)', ascending=False)
+
+    # Gráfico de pizza
+    fig_cat = px.pie(
+        premios_cat,
+        values='Prémios (€)',
+        names='Categoria',
+        title='Distribuição de Prémios por Categoria',
+        height=400
+    )
+
+    st.plotly_chart(fig_cat, use_container_width=True)
+
+    st.dataframe(premios_cat, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Evolução temporal de prémios
+    st.subheader("Evolução Temporal de Prémios")
+
+    premios_mes = df.groupby('Ano_Mes').agg({
+        'Prémios (€)': 'sum',
+        'Vendas ilíquidas (€)': 'sum'
+    }).reset_index()
+
+    premios_mes['RTP %'] = (premios_mes['Prémios (€)'] / premios_mes['Vendas ilíquidas (€)'] * 100).round(2)
+
+    fig_tempo = go.Figure()
+
+    fig_tempo.add_trace(go.Scatter(
+        x=premios_mes['Ano_Mes'],
+        y=premios_mes['Prémios (€)'],
+        name='Prémios Pagos',
+        mode='lines+markers',
+        line=dict(color='#d62728', width=2)
+    ))
+
+    fig_tempo.add_trace(go.Scatter(
+        x=premios_mes['Ano_Mes'],
+        y=premios_mes['RTP %'],
+        name='RTP %',
+        mode='lines+markers',
+        line=dict(color='#ff7f0e', width=2),
+        yaxis='y2'
+    ))
+
+    fig_tempo.update_layout(
+        title="Evolução de Prémios e RTP ao Longo do Tempo",
+        xaxis_title="Mês",
+        yaxis_title="Prémios (€)",
+        yaxis2=dict(
+            title="RTP %",
+            overlaying='y',
+            side='right'
+        ),
+        height=500
+    )
+
+    st.plotly_chart(fig_tempo, use_container_width=True)
+
+
+def pagina_prestacao_contas(df, df_prestacao):
+    """Página Prestação de Contas."""
+    st.subheader("📊 Prestação de Contas")
+
+    if df_prestacao is None or len(df_prestacao) == 0:
+        st.warning("Sem dados de prestação de contas disponíveis.")
+        return
+
+    # KPIs principais
+    col1, col2, col3, col4 = st.columns(4)
+
+    total_prestacao = df_prestacao['Valor (€)'].sum()
+    num_prestacoes = len(df_prestacao)
+    total_liquido = df['Valor (€)'].sum()
+
+    with col1:
+        st.metric("Total Prestado", formatar_euro(total_prestacao))
+
+    with col2:
+        st.metric("Nº de Prestações", num_prestacoes)
+
+    with col3:
+        st.metric("Valor Calculado", formatar_euro(total_liquido))
+
+    with col4:
+        diferenca = total_prestacao - total_liquido
+        st.metric("Diferença", formatar_euro(diferenca))
+
+    st.divider()
+
+    # Métricas adicionais
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if num_prestacoes > 0:
+            media_prestacao = total_prestacao / num_prestacoes
+            st.metric("Média por Prestação", formatar_euro(media_prestacao))
+
+    with col2:
+        if total_prestacao != 0:
+            pct_diferenca = (diferenca / total_prestacao * 100)
+            st.metric("% Diferença", f"{pct_diferenca:.2f}%")
+
+    with col3:
+        if total_liquido > 0:
+            razao = total_prestacao / total_liquido
+            st.metric("Razão Prestação/Calculado", f"{razao:.4f}")
+
+    st.divider()
+
+    # Evolução mensal
+    st.subheader("Evolução Mensal das Prestações")
+
+    prestacao_mes = df_prestacao.groupby('Ano_Mes')['Valor (€)'].sum().reset_index()
+    calculado_mes = df.groupby('Ano_Mes')['Valor (€)'].sum().reset_index()
+
+    # Merge dos dados
+    comparacao = prestacao_mes.merge(calculado_mes, on='Ano_Mes', how='outer', suffixes=(' Prestação', ' Calculado'))
+    comparacao = comparacao.fillna(0)
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=comparacao['Ano_Mes'],
+        y=comparacao['Valor (€) Prestação'],
+        name='Prestação de Contas',
+        marker_color='#1f77b4'
+    ))
+
+    fig.add_trace(go.Bar(
+        x=comparacao['Ano_Mes'],
+        y=comparacao['Valor (€) Calculado'],
+        name='Valor Calculado',
+        marker_color='#2ca02c'
+    ))
+
+    fig.update_layout(
+        title="Comparação Mensal: Prestação vs Calculado",
+        xaxis_title="Mês",
+        yaxis_title="Valor (€)",
+        barmode='group',
+        height=500
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+
+    # Tabela de prestações
+    st.subheader("Últimas Prestações")
+
+    df_prestacao_display = df_prestacao.copy()
+    df_prestacao_display['Data'] = df_prestacao_display['Data'].dt.strftime('%d-%m-%Y')
+    df_prestacao_display = df_prestacao_display.sort_values('Data', ascending=False)
+
+    st.dataframe(df_prestacao_display, use_container_width=True, hide_index=True)
+
+
+def pagina_dados_detalhados(df):
+    """Página Dados Detalhados."""
+    st.subheader("Dados Detalhados")
+
+    # Opção de exportação
+    col1, col2 = st.columns([3, 1])
+
+    with col2:
+        if st.button("📥 Exportar Excel"):
+            excel_data = exportar_excel(df)
+            if excel_data:
+                st.download_button(
+                    label="Download Excel",
+                    data=excel_data,
+                    file_name=f"santa_casa_dados_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+    # Mostrar dados completos
+    df_display = df.copy()
+    df_display['Data'] = df_display['Data'].dt.strftime('%d-%m-%Y')
+
+    st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+    # Estatísticas descritivas
+    st.subheader("Estatísticas Descritivas")
+
+    stats = df[['Vendas ilíquidas (€)', 'Remunerações (€)', 'Prémios (€)', 'Valor (€)']].describe()
+    st.dataframe(stats, use_container_width=True)
+
+
+# ============= INTERFACE PRINCIPAL =============
+
+def main():
+    st.markdown('<h1 class="main-header">Dashboard Santa Casa - Análise Completa 🎲</h1>', unsafe_allow_html=True)
+
+    # Carregar dados
+    result = carregar_dados()
+
+    if result is None:
+        st.error("Não foi possível carregar os dados.")
+        return
+
+    df, df_prestacao = result
+
+    if df is None or len(df) == 0:
+        st.error("Não foi possível carregar os dados.")
+        return
+
+    # Sidebar com filtros
+    st.sidebar.header("Filtros")
+
+    # Filtro de data
+    min_date = df['Data'].min()
+    max_date = df['Data'].max()
+
+    date_range = st.sidebar.date_input(
+        "Período",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+
+    if len(date_range) == 2:
+        df_filtrado = df[(df['Data'] >= pd.to_datetime(date_range[0])) &
+                        (df['Data'] <= pd.to_datetime(date_range[1]))]
+    else:
+        df_filtrado = df
+
+    # Filtro de categoria
+    categorias = ['Todas'] + sorted(df_filtrado['Categoria'].unique().tolist())
+    categoria_selecionada = st.sidebar.selectbox("Categoria", categorias)
+
+    if categoria_selecionada != 'Todas':
+        df_filtrado = df_filtrado[df_filtrado['Categoria'] == categoria_selecionada]
+
+    # Filtro de jogo
+    jogos = ['Todos'] + sorted(df_filtrado['Jogo'].unique().tolist())
+    jogo_selecionado = st.sidebar.selectbox("Jogo", jogos)
+
+    if jogo_selecionado != 'Todos':
+        df_filtrado = df_filtrado[df_filtrado['Jogo'] == jogo_selecionado]
+
+    # ======== NAVEGAÇÃO ========
+    st.sidebar.divider()
+    pagina = st.sidebar.radio(
+        "Navegação",
+        ["📊 Visão Geral", "🎰 Por Categoria", "🎮 Por Jogo", "🎫 Raspadinhas", "📅 Temporal", "💰 Prémios", "📋 Prestação de Contas", "📋 Dados Detalhados"]
+    )
+
+    # KPIs principais
+    st.subheader("Indicadores Principais")
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    total_vendas = df_filtrado['Vendas ilíquidas (€)'].sum()
+    total_remuneracoes = df_filtrado['Remunerações (€)'].sum()
+    total_premios = df_filtrado['Prémios (€)'].sum()
+    total_liquido = df_filtrado['Valor (€)'].sum()
+    num_transacoes = len(df_filtrado)
+
+    with col1:
+        st.metric("Vendas Ilíquidas", formatar_euro(total_vendas))
+
+    with col2:
+        st.metric("Remunerações", formatar_euro(total_remuneracoes))
+
+    with col3:
+        st.metric("Prémios Pagos", formatar_euro(total_premios))
+
+    with col4:
+        st.metric("Valor Líquido", formatar_euro(total_liquido))
+
+    with col5:
+        st.metric("Transações", f"{num_transacoes:,}")
+
+    # Métricas adicionais
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        margem_pct = (total_liquido / total_vendas * 100) if total_vendas > 0 else 0
+        st.metric("Margem %", f"{margem_pct:.2f}%")
+
+    with col2:
+        remuneracao_pct = (total_remuneracoes / total_vendas * 100) if total_vendas > 0 else 0
+        st.metric("% Remuneração", f"{remuneracao_pct:.2f}%")
+
+    with col3:
+        premios_pct = (total_premios / total_vendas * 100) if total_vendas > 0 else 0
+        st.metric("% Prémios", f"{premios_pct:.2f}%")
+
+    with col4:
+        ticket_medio = total_vendas / num_transacoes if num_transacoes > 0 else 0
+        st.metric("Ticket Médio", formatar_euro(ticket_medio))
+
+    st.divider()
+
+    # Tabs de análise
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📊 Visão Geral",
+        "🎰 Por Categoria",
+        "🎮 Por Jogo",
+        "🎫 Raspadinhas",
+        "📅 Temporal",
+        "📋 Dados Detalhados"
+    ])
+
+    with tab1:
+        st.subheader("Evolução Temporal")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            periodo = st.radio("Período", ["Mes", "Semana"], horizontal=True)
+
+        fig_tempo = criar_grafico_vendas_tempo(df_filtrado, periodo)
+        st.plotly_chart(fig_tempo, use_container_width=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Vendas por Categoria")
+            fig_cat = criar_grafico_categoria(df_filtrado)
+            st.plotly_chart(fig_cat, use_container_width=True)
+
+        with col2:
+            st.subheader("Distribuição por Dia da Semana")
+            fig_dia = criar_grafico_dia_semana(df_filtrado)
+            st.plotly_chart(fig_dia, use_container_width=True)
+
+    with tab2:
+        st.subheader("Análise por Categoria")
+
+        # Resumo por categoria
+        resumo_cat = df_filtrado.groupby('Categoria').agg({
+            'Vendas ilíquidas (€)': 'sum',
+            'Remunerações (€)': 'sum',
+            'Prémios (€)': 'sum',
+            'Valor (€)': 'sum',
+            'Data': 'count'
+        }).reset_index()
+
+        resumo_cat.columns = ['Categoria', 'Vendas Ilíquidas', 'Remunerações', 'Prémios', 'Valor Líquido', 'Transações']
+        resumo_cat['Margem %'] = (resumo_cat['Valor Líquido'] / resumo_cat['Vendas Ilíquidas'] * 100).round(2)
+        resumo_cat = resumo_cat.sort_values('Vendas Ilíquidas', ascending=False)
+
+        st.dataframe(resumo_cat, use_container_width=True, hide_index=True)
+
+        # Gráfico de pizza
+        fig_pizza = px.pie(
+            resumo_cat,
+            values='Vendas Ilíquidas',
+            names='Categoria',
+            title='Distribuição de Vendas por Categoria',
+            height=500
+        )
+        st.plotly_chart(fig_pizza, use_container_width=True)
+
+    with tab3:
+        st.subheader("Análise por Jogo")
+
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            top_n = st.slider("Top N Jogos", 5, 20, 10)
+
+        fig_jogo = criar_grafico_jogo(df_filtrado, top_n)
+        st.plotly_chart(fig_jogo, use_container_width=True)
+
+        # Tabela resumo
+        st.subheader("Resumo Detalhado por Jogo")
+        resumo = criar_tabela_resumo(df_filtrado)
+        st.dataframe(resumo, use_container_width=True, hide_index=True)
+
+    with tab4:
+        st.subheader("Análise Específica de Raspadinhas")
+
+        raspadinhas = df_filtrado[df_filtrado['Jogo'] == 'Raspadinha']
+
+        if len(raspadinhas) == 0:
+            st.info("Nenhum dado de raspadinhas encontrado no período selecionado.")
+        else:
+            # KPIs de raspadinhas
+            col1, col2, col3, col4 = st.columns(4)
+
+            total_macos = raspadinhas['Qt Maços'].sum()
+            vendas_rasp = raspadinhas['Vendas ilíquidas (€)'].sum()
+            premios_rasp = raspadinhas['Prémios (€)'].sum()
+            liquido_rasp = raspadinhas['Valor (€)'].sum()
+
+            with col1:
+                st.metric("Total de Maços", f"{int(total_macos)}")
+
+            with col2:
+                st.metric("Vendas", formatar_euro(vendas_rasp))
+
+            with col3:
+                st.metric("Prémios Pagos", formatar_euro(premios_rasp))
+
+            with col4:
+                st.metric("Valor Líquido", formatar_euro(liquido_rasp))
+
+            # Gráfico de raspadinhas
+            fig_rasp = criar_grafico_raspadinhas(df_filtrado)
+            if fig_rasp:
+                st.plotly_chart(fig_rasp, use_container_width=True)
+
+            # Análise de maços
+            st.subheader("Análise de Maços Comprados")
+            fig_macos = criar_analise_macos(df_filtrado)
+            if fig_macos:
+                st.plotly_chart(fig_macos, use_container_width=True)
+            else:
+                st.info("Nenhum maço comprado no período selecionado.")
+
+            # Tabela detalhada de raspadinhas
+            st.subheader("Detalhes por Jogo Rececionado")
+
+            analise_rasp = raspadinhas.groupby('Jogo Rececionado').agg({
+                'Qt Maços': 'sum',
+                'Vendas ilíquidas (€)': 'sum',
+                'Remunerações (€)': 'sum',
+                'Prémios (€)': 'sum',
+                'Valor (€)': 'sum',
+                'Data': 'count'
+            }).reset_index()
+
+            analise_rasp.columns = ['Jogo Rececionado', 'Maços', 'Vendas', 'Remunerações', 'Prémios', 'Valor Líquido', 'Transações']
+            analise_rasp = analise_rasp.sort_values('Vendas', ascending=False)
+
+            st.dataframe(analise_rasp, use_container_width=True, hide_index=True)
+
+    with tab5:
+        st.subheader("Análise Temporal Detalhada")
+
+        # Seletor de agrupamento
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            agrupamento = st.selectbox("Agrupar por", ["Mês", "Semana", "Dia da Semana", "Trimestre"])
+
+        # Mapear seleção para coluna
+        mapa_agrupamento = {
+            "Mês": "Ano_Mes",
+            "Semana": "Ano_Semana",
+            "Dia da Semana": "Dia_Semana",
+            "Trimestre": "Trimestre"
+        }
+
+        col_grupo = mapa_agrupamento[agrupamento]
+
+        vendas_temporal = df_filtrado.groupby(col_grupo).agg({
+            'Vendas ilíquidas (€)': 'sum',
+            'Remunerações (€)': 'sum',
+            'Prémios (€)': 'sum',
+            'Valor (€)': 'sum',
+            'Data': 'count'
+        }).reset_index()
+
+        vendas_temporal.columns = [agrupamento, 'Vendas Ilíquidas', 'Remunerações', 'Prémios', 'Valor Líquido', 'Transações']
+
+        st.dataframe(vendas_temporal, use_container_width=True, hide_index=True)
+
+        # Gráfico de barras empilhadas
+        fig_temporal = go.Figure()
+
+        fig_temporal.add_trace(go.Bar(
+            x=vendas_temporal[agrupamento],
+            y=vendas_temporal['Vendas Ilíquidas'],
+            name='Vendas Ilíquidas',
+            marker_color='#1f77b4'
+        ))
+
+        fig_temporal.add_trace(go.Bar(
+            x=vendas_temporal[agrupamento],
+            y=vendas_temporal['Remunerações'],
+            name='Remunerações',
+            marker_color='#2ca02c'
+        ))
+
+        fig_temporal.add_trace(go.Bar(
+            x=vendas_temporal[agrupamento],
+            y=vendas_temporal['Prémios'],
+            name='Prémios',
+            marker_color='#d62728'
+        ))
+
+        fig_temporal.update_layout(
+            title=f"Análise por {agrupamento}",
+            xaxis_title=agrupamento,
+            yaxis_title="Valor (€)",
+            barmode='group',
+            height=500
+        )
+
+        st.plotly_chart(fig_temporal, use_container_width=True)
+
+    with tab6:
+        st.subheader("Dados Detalhados")
+
+        # Opção de exportação
+        col1, col2 = st.columns([3, 1])
+
+        with col2:
+            if st.button("📥 Exportar Excel"):
+                excel_data = exportar_excel(df_filtrado)
+                if excel_data:
+                    st.download_button(
+                        label="Download Excel",
+                        data=excel_data,
+                        file_name=f"santa_casa_dados_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
+        # Mostrar dados completos
+        df_display = df_filtrado.copy()
+        df_display['Data'] = df_display['Data'].dt.strftime('%d-%m-%Y')
+
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+        # Estatísticas descritivas
+        st.subheader("Estatísticas Descritivas")
+
+        stats = df_filtrado[['Vendas ilíquidas (€)', 'Remunerações (€)', 'Prémios (€)', 'Valor (€)']].describe()
+        st.dataframe(stats, use_container_width=True)
+
+    # Footer
+    st.divider()
+    st.caption(f"Dashboard Santa Casa - Análise Completa | Dados atualizados até {max_date.strftime('%d-%m-%Y')}")
+
+
+if __name__ == "__main__":
+    main()
