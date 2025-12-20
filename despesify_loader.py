@@ -8,19 +8,33 @@ import mysql.connector
 from typing import Optional, Dict, Tuple
 from datetime import datetime, timedelta
 import warnings
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 
 warnings.filterwarnings('ignore')
 
+# Carregar variáveis de ambiente do ficheiro .env
+env_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
 
 class DespesifyLoader:
-    """Carregador de despesas reais do Despesify (MariaDB)"""
+    """
+    Carregador de despesas reais do Despesify (MariaDB)
 
-    # Configuração da base de dados
+    SEGURANÇA:
+    - Credenciais carregadas de variáveis de ambiente (.env)
+    - Senha não exposta no código
+    """
+
+    # Configuração da base de dados (carregada de variáveis de ambiente)
     DB_CONFIG = {
-        'host': 'localhost',
-        'user': 'root',
-        'password': 'cathie',
-        'database': 'despesify'
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': int(os.getenv('DB_PORT', '3306')),
+        'user': os.getenv('DB_USER', 'root'),
+        'password': os.getenv('DB_PASSWORD', ''),
+        'database': os.getenv('DB_NAME_DESPESIFY', 'despesify')
     }
 
     # Mapeamento de categorias Despesify para categorias do Dashboard

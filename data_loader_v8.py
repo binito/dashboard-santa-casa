@@ -9,10 +9,17 @@ import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
 import warnings
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 from cost_manager_v2 import CostManagerV2
 from product_categorizer import ProductCategorizer
 
 warnings.filterwarnings('ignore')
+
+# Carregar variáveis de ambiente do ficheiro .env
+env_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 
 class DataLoaderV8:
@@ -24,14 +31,19 @@ class DataLoaderV8:
     - Filtros aplicados na query (WHERE) - muito mais eficiente
     - Índices otimizados para performance
     - Dados sempre atualizados pelos scripts cron
+
+    SEGURANÇA:
+    - Credenciais carregadas de variáveis de ambiente (.env)
+    - Senha não exposta no código
     """
 
-    # Configuração do banco de dados
+    # Configuração do banco de dados (carregada de variáveis de ambiente)
     DB_CONFIG = {
-        'host': 'localhost',
-        'user': 'root',
-        'password': 'cathie',
-        'database': 'dashboard'
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': int(os.getenv('DB_PORT', '3306')),
+        'user': os.getenv('DB_USER', 'root'),
+        'password': os.getenv('DB_PASSWORD', ''),
+        'database': os.getenv('DB_NAME_DASHBOARD', 'dashboard')
     }
 
     def __init__(self, custos_dir='dados_custos', usar_despesify=True):

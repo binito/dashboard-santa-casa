@@ -1425,6 +1425,297 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
             st.divider()
 
 
+# ========== FUNÇÕES DE FORECAST & ANÁLISE DE ENCOMENDAS ==========
+
+def filtrar_produtos_regulares(df, dias_minimos=30, vendas_minimas=5):
+    """
+    Filtra produtos com vendas regulares (exclui produtos esporádicos)
+
+    Args:
+        df: DataFrame com vendas
+        dias_minimos: Período mínimo de análise (default 30 dias)
+        vendas_minimas: Número mínimo de transações no período
+
+    Returns:
+        Lista de produtos regulares
+    """
+    if df.empty:
+        return []
+
+    # Calcular data limite
+    data_max = df['Data'].max()
+    data_limite = data_max - timedelta(days=dias_minimos)
+
+    # Filtrar período
+    df_periodo = df[df['Data'] >= data_limite]
+
+    # Agrupar por produto e contar transações
+    produtos_count = df_periodo.groupby('Produto').size().reset_index(name='count')
+
+    # Filtrar produtos com vendas >= vendas_minimas
+    produtos_regulares = produtos_count[produtos_count['count'] >= vendas_minimas]['Produto'].tolist()
+
+    return produtos_regulares
+
+
+def calcular_sazonalidade_produto(df_produto):
+    """
+    Analisa padrões de sazonalidade de um produto
+
+    Args:
+        df_produto: DataFrame filtrado para um produto específico
+
+    Returns:
+        dict com métricas de sazonalidade
+    """
+    if df_produto.empty:
+        return {
+            'media_diaria': 0,
+            'media_por_dia_semana': {},
+            'desvio_padrao': 0,
+            'coeficiente_variacao': 0,
+            'dias_com_venda': 0,
+            'total_dias_periodo': 0
+        }
+
+    # Adicionar coluna Dia_Semana se não existir
+    if 'Dia_Semana' not in df_produto.columns:
+        df_produto = df_produto.copy()
+        df_produto['Dia_Semana'] = df_produto['Data'].dt.dayofweek
+
+    # Agrupar por Data e somar quantidade
+    vendas_diarias = df_produto.groupby('Data')['Qtd'].sum()
+
+    # Calcular métricas gerais
+    media_diaria = vendas_diarias.mean()
+    desvio_padrao = vendas_diarias.std()
+    dias_com_venda = len(vendas_diarias)
+
+    # Calcular período total
+    data_min = df_produto['Data'].min()
+    data_max = df_produto['Data'].max()
+    total_dias_periodo = (data_max - data_min).days + 1
+
+    # Calcular média por dia da semana
+    media_por_dia_semana = {}
+    for dia in range(7):  # 0=Segunda, 6=Domingo
+        vendas_dia = df_produto[df_produto['Dia_Semana'] == dia]['Qtd'].sum()
+        dias_com_venda_dia = df_produto[df_produto['Dia_Semana'] == dia]['Data'].nunique()
+        media_por_dia_semana[dia] = vendas_dia / max(dias_com_venda_dia, 1)
+
+    # Calcular coeficiente de variação
+    cv = (desvio_padrao / max(media_diaria, 0.001)) * 100
+
+    return {
+        'media_diaria': media_diaria,
+        'media_por_dia_semana': media_por_dia_semana,
+        'desvio_padrao': desvio_padrao,
+        'coeficiente_variacao': cv,
+        'dias_com_venda': dias_com_venda,
+        'total_dias_periodo': total_dias_periodo
+    }
+
+
+def calcular_tendencia_produto(df_produto, janela_dias=14):
+    """
+    Calcula tendência de crescimento/decrescimento usando regressão linear
+
+    Args:
+        df_produto: DataFrame do produto
+        janela_dias: Janela de tempo para análise (últimos N dias)
+
+    Returns:
+        dict com tendencia_percent, direcao, confianca
+    """
+    if df_produto.empty or len(df_produto) < 3:
+        return {
+            'tendencia_percent': 0,
+            'direcao': 'estavel',
+            'confianca': 0
+        }
+
+    # Filtrar últimos janela_dias
+    data_max = df_produto['Data'].max()
+    data_inicio = data_max - timedelta(days=janela_dias)
+    df_janela = df_produto[df_produto['Data'] >= data_inicio]
+
+    if df_janela.empty or len(df_janela) < 3:
+        return {
+            'tendencia_percent': 0,
+            'direcao': 'estavel',
+            'confianca': 0
+        }
+
+    # Agrupar por data e somar quantidade
+    serie = df_janela.groupby('Data')['Qtd'].sum().reset_index()
+    serie = serie.sort_values('Data')
+
+    if len(serie) < 3:
+        return {
+            'tendencia_percent': 0,
+            'direcao': 'estavel',
+            'confianca': 0
+        }
+
+    # Preparar dados para regressão
+    x = np.arange(len(serie))
+    y = serie['Qtd'].values
+
+    # Regressão linear
+    coefficients = np.polyfit(x, y, 1)
+    slope, intercept = coefficients
+
+    # Calcular R² (qualidade do ajuste)
+    y_pred = slope * x + intercept
+    ss_res = np.sum((y - y_pred) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+    r_squared = max(0, min(1, r_squared))  # Limitar entre 0 e 1
+
+    # Converter slope em % de mudança
+    valor_inicial = intercept
+    valor_final = slope * len(x) + intercept
+
+    if valor_inicial > 0:
+        tendencia_percent = ((valor_final - valor_inicial) / valor_inicial) * 100
+    else:
+        tendencia_percent = 0
+
+    # Classificar tendência
+    if tendencia_percent > 5:
+        direcao = 'crescimento'
+    elif tendencia_percent < -5:
+        direcao = 'queda'
+    else:
+        direcao = 'estavel'
+
+    return {
+        'tendencia_percent': tendencia_percent,
+        'direcao': direcao,
+        'confianca': r_squared
+    }
+
+
+def calcular_stock_seguranca(media_diaria, desvio_padrao, fator_seguranca=1.5):
+    """
+    Calcula stock de segurança baseado em variabilidade
+
+    Args:
+        media_diaria: Demanda média diária
+        desvio_padrao: Variabilidade da demanda
+        fator_seguranca: Multiplicador de segurança (default 1.5)
+
+    Returns:
+        float: Quantidade de stock de segurança
+    """
+    # Fórmula: stock_seguranca = fator_seguranca * desvio_padrao
+    stock = fator_seguranca * desvio_padrao
+
+    # Garantir mínimo de 20% da média diária
+    stock_minimo = media_diaria * 0.2
+
+    return max(stock, stock_minimo)
+
+
+def gerar_forecast_produtos(df, cost_manager, dias_analise=60, produtos_regulares_only=True):
+    """
+    Gera previsão de encomenda para produtos
+
+    Args:
+        df: DataFrame completo de vendas
+        cost_manager: CostManagerV2 para obter custos
+        dias_analise: Período de análise histórica (default 60 dias)
+        produtos_regulares_only: Se True, filtra apenas produtos regulares
+
+    Returns:
+        DataFrame com forecast completo
+    """
+    if df.empty:
+        return pd.DataFrame()
+
+    # Filtrar últimos dias_analise
+    data_max = df['Data'].max()
+    data_inicio = data_max - timedelta(days=dias_analise)
+    df_analise = df[df['Data'] >= data_inicio].copy()
+
+    # Filtrar produtos regulares se solicitado
+    if produtos_regulares_only:
+        produtos_regulares = filtrar_produtos_regulares(df_analise, dias_minimos=30, vendas_minimas=5)
+        df_analise = df_analise[df_analise['Produto'].isin(produtos_regulares)]
+
+    if df_analise.empty:
+        return pd.DataFrame()
+
+    # Lista para armazenar resultados
+    resultados = []
+
+    # Para cada produto
+    produtos = df_analise['Produto'].unique()
+
+    for produto in produtos:
+        # Filtrar dados do produto
+        df_produto = df_analise[df_analise['Produto'] == produto]
+
+        # Pular se dados insuficientes
+        if len(df_produto) < 3:
+            continue
+
+        # Obter categoria
+        categoria = df_produto['Categoria'].iloc[0] if 'Categoria' in df_produto.columns else 'Outros'
+
+        # Calcular sazonalidade
+        sazonalidade = calcular_sazonalidade_produto(df_produto)
+        media_diaria = sazonalidade['media_diaria']
+        desvio_padrao = sazonalidade['desvio_padrao']
+        cv = sazonalidade['coeficiente_variacao']
+        dias_com_venda = sazonalidade['dias_com_venda']
+
+        # Calcular tendência
+        tendencia = calcular_tendencia_produto(df_produto, janela_dias=14)
+        tendencia_percent = tendencia['tendencia_percent']
+        tendencia_direcao = tendencia['direcao']
+
+        # Calcular stock de segurança
+        stock_seguranca = calcular_stock_seguranca(media_diaria, desvio_padrao, fator_seguranca=1.5)
+
+        # Calcular quantidades
+        qtd_semanal = media_diaria * 7
+        qtd_mensal = media_diaria * 30
+
+        # Obter custo unitário
+        custo_unitario = cost_manager.get_custo_produto(produto, categoria)
+
+        # Calcular valores
+        valor_semanal = qtd_semanal * custo_unitario
+        valor_mensal = qtd_mensal * custo_unitario
+
+        # Adicionar ao resultado
+        resultados.append({
+            'Produto': produto,
+            'Categoria': categoria,
+            'Media_Diaria': media_diaria,
+            'Qtd_Semanal': qtd_semanal,
+            'Qtd_Mensal': qtd_mensal,
+            'Stock_Seguranca': stock_seguranca,
+            'Custo_Unitario': custo_unitario,
+            'Valor_Encomenda_Semanal': valor_semanal,
+            'Valor_Encomenda_Mensal': valor_mensal,
+            'Tendencia_Percent': tendencia_percent,
+            'Tendencia_Direcao': tendencia_direcao,
+            'CV': cv,
+            'Dias_Com_Venda': dias_com_venda
+        })
+
+    # Criar DataFrame
+    df_forecast = pd.DataFrame(resultados)
+
+    # Ordenar por Valor_Encomenda_Mensal DESC
+    if not df_forecast.empty:
+        df_forecast = df_forecast.sort_values('Valor_Encomenda_Mensal', ascending=False)
+
+    return df_forecast
+
+
 # Interface principal
 def main():
     # Cabeçalho
@@ -1451,21 +1742,50 @@ def main():
     data_min = df['Data'].min().date()
     data_max = df['Data'].max().date()
 
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        data_inicio = st.date_input(
-            "Data Início",
-            value=data_min,
+    # Botões rápidos para anos com Pills modernas
+    st.sidebar.markdown("**⚡ Atalhos de Ano:**")
+
+    anos_unicos = sorted(df['Data'].dt.year.unique())
+    opcoes_anos = [str(ano) for ano in anos_unicos] + ["Todos"]
+
+    # Determinar seleção padrão
+    if "selected_year" not in st.session_state:
+        st.session_state.selected_year = None
+
+    default_selection = str(st.session_state.selected_year) if st.session_state.selected_year else "Todos"
+
+    ano_selecionado = st.sidebar.pills(
+        "Selecionar período",
+        options=opcoes_anos,
+        default=default_selection,
+        label_visibility="collapsed"
+    )
+
+    # Atualizar session_state baseado na seleção
+    if ano_selecionado == "Todos":
+        st.session_state.selected_year = None
+    else:
+        st.session_state.selected_year = int(ano_selecionado)
+
+    # Aplicar filtro de ano rápido se selecionado
+    if st.session_state.selected_year:
+        ano = st.session_state.selected_year
+        date_range = (pd.Timestamp(f"{ano}-01-01").date(), pd.Timestamp(f"{ano}-12-31").date())
+    else:
+        date_range = st.sidebar.date_input(
+            "Período",
+            value=(data_min, data_max),
             min_value=data_min,
             max_value=data_max
         )
-    with col2:
-        data_fim = st.date_input(
-            "Data Fim",
-            value=data_max,
-            min_value=data_min,
-            max_value=data_max
-        )
+
+    # Extrair data_inicio e data_fim do date_range
+    if isinstance(date_range, tuple) and len(date_range) == 2:
+        data_inicio, data_fim = date_range
+    elif isinstance(date_range, tuple) and len(date_range) == 1:
+        data_inicio = data_fim = date_range[0]
+    else:
+        data_inicio = data_fim = date_range
 
     # Filtro de categoria
     st.sidebar.subheader("📂 Categorias")
@@ -1614,7 +1934,7 @@ def main():
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
     # Tabs principais
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
         "📊 Visão Geral",
         "☕ Análise por Categoria",
         "📈 Análise Temporal",
@@ -1625,7 +1945,8 @@ def main():
         "💸 Análise de Custos",
         "📊 Rentabilidade & Margens",
         "🎯 Break-Even Analysis",
-        "🎰 Jogos Santa Casa"
+        "🎰 Jogos Santa Casa",
+        "📦 Forecast & Encomendas"
     ])
 
     # TAB 1 - Visão Geral
@@ -3859,6 +4180,486 @@ def main():
     with tab11:
         df_jogos = carregar_dados_santa_casa()
         pagina_jogos_santa_casa(df_jogos, data_inicio, data_fim)
+
+    # TAB 12 - Forecast & Encomendas
+    with tab12:
+        st.header("📦 Forecast & Previsão de Encomendas")
+        st.caption("Análise de sazonalidade e recomendações de encomenda por produto")
+
+        # ========== PARÂMETROS DE CONFIGURAÇÃO ==========
+        st.subheader("⚙️ Parâmetros de Análise")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            dias_analise_forecast = st.slider(
+                "Período de análise (dias)",
+                min_value=30,
+                max_value=180,
+                value=60,
+                step=30,
+                help="Período histórico para calcular médias"
+            )
+
+        with col2:
+            vendas_minimas_forecast = st.number_input(
+                "Vendas mínimas (regularidade)",
+                min_value=3,
+                max_value=20,
+                value=5,
+                step=1,
+                help="Mínimo de vendas para considerar produto regular"
+            )
+
+        with col3:
+            fator_seguranca_forecast = st.slider(
+                "Fator de stock de segurança",
+                min_value=1.0,
+                max_value=2.5,
+                value=1.5,
+                step=0.1,
+                help="Multiplicador para stock de segurança"
+            )
+
+        # Checkbox para incluir produtos esporádicos
+        incluir_esporadicos = st.checkbox(
+            "Incluir produtos com vendas esporádicas",
+            value=False,
+            help="Se desmarcado, mostra apenas produtos com vendas regulares"
+        )
+
+        st.markdown("---")
+
+        # ========== GERAR FORECAST ==========
+        with st.spinner("Calculando previsões..."):
+            df_forecast = gerar_forecast_produtos(
+                df_filtrado,
+                cost_manager,
+                dias_analise=dias_analise_forecast,
+                produtos_regulares_only=not incluir_esporadicos
+            )
+
+        if df_forecast.empty:
+            st.warning("Nenhum produto encontrado com os critérios selecionados.")
+            st.info("💡 Dica: Tente aumentar o período de análise ou reduzir o número de vendas mínimas.")
+        else:
+            # ========== MÉTRICAS RESUMIDAS ==========
+            st.subheader("📊 Resumo de Encomendas")
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                total_produtos = len(df_forecast)
+                st.metric(
+                    "Total de Produtos",
+                    total_produtos,
+                    help="Produtos com vendas regulares"
+                )
+
+            with col2:
+                total_semanal = df_forecast['Valor_Encomenda_Semanal'].sum()
+                st.metric(
+                    "Encomenda Semanal",
+                    formatar_moeda(total_semanal),
+                    help="Valor total estimado para encomenda semanal"
+                )
+
+            with col3:
+                total_mensal = df_forecast['Valor_Encomenda_Mensal'].sum()
+                st.metric(
+                    "Encomenda Mensal",
+                    formatar_moeda(total_mensal),
+                    help="Valor total estimado para encomenda mensal"
+                )
+
+            with col4:
+                produtos_crescimento = len(df_forecast[df_forecast['Tendencia_Direcao'] == 'crescimento'])
+                st.metric(
+                    "Produtos em Crescimento",
+                    produtos_crescimento,
+                    delta=f"{(produtos_crescimento/total_produtos*100):.1f}%",
+                    help="Produtos com tendência de crescimento"
+                )
+
+            st.markdown("---")
+
+            # ========== FILTROS DE CATEGORIA ==========
+            st.subheader("🔍 Filtros")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                categorias_forecast = sorted(df_forecast['Categoria'].unique())
+                categoria_selecionada_forecast = st.multiselect(
+                    "Filtrar por Categoria",
+                    options=categorias_forecast,
+                    default=categorias_forecast,
+                    help="Selecione categorias para exibir"
+                )
+
+            with col2:
+                tendencia_filtro = st.multiselect(
+                    "Filtrar por Tendência",
+                    options=['crescimento', 'estavel', 'queda'],
+                    default=['crescimento', 'estavel', 'queda'],
+                    help="Filtrar produtos por tendência"
+                )
+
+            # Aplicar filtros
+            df_forecast_filtrado = df_forecast[
+                (df_forecast['Categoria'].isin(categoria_selecionada_forecast)) &
+                (df_forecast['Tendencia_Direcao'].isin(tendencia_filtro))
+            ]
+
+            if df_forecast_filtrado.empty:
+                st.warning("Nenhum produto encontrado com os filtros selecionados.")
+            else:
+                st.markdown("---")
+
+                # ========== TABELA DE RECOMENDAÇÕES ==========
+                st.subheader("📋 Recomendações de Encomenda")
+
+                # Formatar DataFrame para exibição
+                df_display = df_forecast_filtrado.copy()
+
+                # Criar coluna de tendência visual
+                def formatar_tendencia(row):
+                    if row['Tendencia_Direcao'] == 'crescimento':
+                        return f"📈 +{row['Tendencia_Percent']:.1f}%"
+                    elif row['Tendencia_Direcao'] == 'queda':
+                        return f"📉 {row['Tendencia_Percent']:.1f}%"
+                    else:
+                        return f"➡️ {row['Tendencia_Percent']:.1f}%"
+
+                df_display['Tendencia'] = df_display.apply(formatar_tendencia, axis=1)
+
+                # Selecionar e renomear colunas
+                df_display = df_display[[
+                    'Produto', 'Categoria', 'Media_Diaria', 'Qtd_Semanal',
+                    'Qtd_Mensal', 'Stock_Seguranca', 'Custo_Unitario',
+                    'Valor_Encomenda_Semanal', 'Valor_Encomenda_Mensal',
+                    'Tendencia', 'CV', 'Dias_Com_Venda'
+                ]]
+
+                df_display.columns = [
+                    'Produto', 'Categoria', 'Média Diária', 'Qtd Semanal',
+                    'Qtd Mensal', 'Stock Segurança', 'Custo Unit.',
+                    'Valor Semanal', 'Valor Mensal', 'Tendência',
+                    'Variabilidade', 'Dias c/ Venda'
+                ]
+
+                # Formatar valores numéricos
+                df_display['Média Diária'] = df_display['Média Diária'].apply(lambda x: f"{x:.1f}")
+                df_display['Qtd Semanal'] = df_display['Qtd Semanal'].apply(lambda x: f"{x:.0f}")
+                df_display['Qtd Mensal'] = df_display['Qtd Mensal'].apply(lambda x: f"{x:.0f}")
+                df_display['Stock Segurança'] = df_display['Stock Segurança'].apply(lambda x: f"{x:.0f}")
+                df_display['Custo Unit.'] = df_display['Custo Unit.'].apply(formatar_moeda)
+                df_display['Valor Semanal'] = df_display['Valor Semanal'].apply(formatar_moeda)
+                df_display['Valor Mensal'] = df_display['Valor Mensal'].apply(formatar_moeda)
+                df_display['Variabilidade'] = df_display['Variabilidade'].apply(lambda x: f"{x:.1f}%")
+
+                # Exibir tabela
+                st.dataframe(
+                    df_display,
+                    use_container_width=True,
+                    height=500,
+                    hide_index=True
+                )
+
+                st.markdown("---")
+
+                # ========== GRÁFICOS ==========
+                st.subheader("📊 Visualizações")
+
+                # Tabs para diferentes gráficos
+                tab_g1, tab_g2, tab_g3 = st.tabs([
+                    "Top Produtos (Valor)",
+                    "Análise de Tendências",
+                    "Comparação Ano Anterior"
+                ])
+
+                with tab_g1:
+                    st.markdown("#### 💰 Top 20 Produtos por Valor de Encomenda Mensal")
+
+                    top20 = df_forecast_filtrado.nlargest(20, 'Valor_Encomenda_Mensal')
+
+                    fig = px.bar(
+                        top20,
+                        x='Valor_Encomenda_Mensal',
+                        y='Produto',
+                        orientation='h',
+                        color='Categoria',
+                        title='Top 20 Produtos - Valor Encomenda Mensal',
+                        labels={'Valor_Encomenda_Mensal': 'Valor (€)', 'Produto': 'Produto'},
+                        height=600
+                    )
+
+                    fig.update_layout(
+                        yaxis={'categoryorder': 'total ascending'},
+                        showlegend=True
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                with tab_g2:
+                    st.markdown("#### 📈 Distribuição de Tendências")
+
+                    # Gráfico de pizza: distribuição de tendências
+                    tendencias_count = df_forecast_filtrado['Tendencia_Direcao'].value_counts().reset_index()
+                    tendencias_count.columns = ['Tendencia', 'Count']
+
+                    fig = px.pie(
+                        tendencias_count,
+                        values='Count',
+                        names='Tendencia',
+                        title='Distribuição de Tendências',
+                        color='Tendencia',
+                        color_discrete_map={
+                            'crescimento': '#28a745',
+                            'estavel': '#ffc107',
+                            'queda': '#dc3545'
+                        },
+                        height=500
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # Scatter plot: Tendência vs Valor Encomenda
+                    st.markdown("#### 🎯 Tendência vs Valor de Encomenda")
+
+                    fig = px.scatter(
+                        df_forecast_filtrado,
+                        x='Tendencia_Percent',
+                        y='Valor_Encomenda_Mensal',
+                        size='Media_Diaria',
+                        color='Categoria',
+                        hover_data=['Produto', 'Qtd_Mensal'],
+                        title='Relação entre Tendência e Valor de Encomenda',
+                        labels={
+                            'Tendencia_Percent': 'Tendência (%)',
+                            'Valor_Encomenda_Mensal': 'Valor Encomenda Mensal (€)'
+                        },
+                        height=500
+                    )
+
+                    fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                with tab_g3:
+                    st.markdown("#### 📅 Comparação com Ano Anterior (YoY)")
+
+                    # Selecionar produto para análise detalhada
+                    produto_selecionado = st.selectbox(
+                        "Selecionar Produto",
+                        options=sorted(df_forecast_filtrado['Produto'].unique()),
+                        help="Escolha um produto para comparar com ano anterior"
+                    )
+
+                    if produto_selecionado:
+                        # Filtrar dados do produto (usar df completo, não apenas df_filtrado)
+                        df_produto_viz = df[df['Produto'] == produto_selecionado].copy()
+
+                        if not df_produto_viz.empty:
+                            # Adicionar coluna de Ano e Mês
+                            df_produto_viz['Ano'] = df_produto_viz['Data'].dt.year
+                            df_produto_viz['Mes'] = df_produto_viz['Data'].dt.month
+                            df_produto_viz['Ano_Mes'] = df_produto_viz['Data'].dt.to_period('M').astype(str)
+
+                            # Obter ano atual e ano anterior
+                            ano_atual = df_produto_viz['Ano'].max()
+                            ano_anterior = ano_atual - 1
+
+                            # Filtrar dados dos dois anos
+                            df_ano_atual = df_produto_viz[df_produto_viz['Ano'] == ano_atual].copy()
+                            df_ano_anterior = df_produto_viz[df_produto_viz['Ano'] == ano_anterior].copy()
+
+                            if not df_ano_atual.empty and not df_ano_anterior.empty:
+                                # Agrupar por mês
+                                vendas_atual = df_ano_atual.groupby('Mes')['Qtd'].sum().reset_index()
+                                vendas_atual['Ano'] = ano_atual
+                                vendas_atual.columns = ['Mes', 'Qtd', 'Ano']
+
+                                vendas_anterior = df_ano_anterior.groupby('Mes')['Qtd'].sum().reset_index()
+                                vendas_anterior['Ano'] = ano_anterior
+                                vendas_anterior.columns = ['Mes', 'Qtd', 'Ano']
+
+                                # Combinar dados
+                                vendas_comparacao = pd.concat([vendas_anterior, vendas_atual])
+
+                                # Mapear nomes dos meses
+                                meses_nomes = {
+                                    1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr',
+                                    5: 'Mai', 6: 'Jun', 7: 'Jul', 8: 'Ago',
+                                    9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'
+                                }
+                                vendas_comparacao['Mes_Nome'] = vendas_comparacao['Mes'].map(meses_nomes)
+
+                                # Gráfico de barras agrupadas
+                                fig = px.bar(
+                                    vendas_comparacao,
+                                    x='Mes_Nome',
+                                    y='Qtd',
+                                    color='Ano',
+                                    barmode='group',
+                                    title=f'Comparação Anual - {produto_selecionado}',
+                                    labels={'Qtd': 'Quantidade', 'Mes_Nome': 'Mês', 'Ano': 'Ano'},
+                                    color_discrete_map={ano_anterior: '#FF6B6B', ano_atual: '#4ECDC4'},
+                                    height=450
+                                )
+
+                                fig.update_layout(
+                                    xaxis={'categoryorder': 'array', 'categoryarray': list(meses_nomes.values())},
+                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                                )
+
+                                st.plotly_chart(fig, use_container_width=True)
+
+                                # Calcular variações
+                                st.markdown(f"##### Análise Comparativa: {produto_selecionado}")
+
+                                # Total do ano
+                                total_ano_atual = vendas_atual['Qtd'].sum()
+                                total_ano_anterior = vendas_anterior['Qtd'].sum()
+                                variacao_total = ((total_ano_atual - total_ano_anterior) / max(total_ano_anterior, 1)) * 100
+
+                                # Média mensal
+                                media_ano_atual = vendas_atual['Qtd'].mean()
+                                media_ano_anterior = vendas_anterior['Qtd'].mean()
+                                variacao_media = ((media_ano_atual - media_ano_anterior) / max(media_ano_anterior, 1)) * 100
+
+                                col1, col2, col3, col4 = st.columns(4)
+
+                                with col1:
+                                    st.metric(
+                                        f"Total {ano_atual}",
+                                        f"{total_ano_atual:.0f}",
+                                        delta=f"{variacao_total:+.1f}% vs {ano_anterior}"
+                                    )
+
+                                with col2:
+                                    st.metric(
+                                        f"Total {ano_anterior}",
+                                        f"{total_ano_anterior:.0f}"
+                                    )
+
+                                with col3:
+                                    st.metric(
+                                        f"Média Mensal {ano_atual}",
+                                        f"{media_ano_atual:.1f}",
+                                        delta=f"{variacao_media:+.1f}% vs {ano_anterior}"
+                                    )
+
+                                with col4:
+                                    # Obter info do forecast
+                                    produto_info = df_forecast_filtrado[df_forecast_filtrado['Produto'] == produto_selecionado].iloc[0]
+                                    st.metric(
+                                        "Encomenda Mensal",
+                                        formatar_moeda(produto_info['Valor_Encomenda_Mensal'])
+                                    )
+
+                                # Gráfico de linha de tendência
+                                st.markdown("##### Evolução Temporal")
+
+                                df_produto_viz_sorted = df_produto_viz.sort_values('Data')
+                                vendas_mensais = df_produto_viz_sorted.groupby('Ano_Mes')['Qtd'].sum().reset_index()
+
+                                fig2 = px.line(
+                                    vendas_mensais,
+                                    x='Ano_Mes',
+                                    y='Qtd',
+                                    title=f'Evolução Mensal - {produto_selecionado}',
+                                    labels={'Qtd': 'Quantidade', 'Ano_Mes': 'Mês'},
+                                    markers=True,
+                                    height=350
+                                )
+
+                                fig2.update_layout(
+                                    xaxis={'tickangle': -45}
+                                )
+
+                                st.plotly_chart(fig2, use_container_width=True)
+
+                            elif not df_ano_atual.empty:
+                                st.warning(f"Apenas dados de {ano_atual} disponíveis. Sem dados de {ano_anterior} para comparação.")
+
+                                # Mostrar apenas dados do ano atual
+                                vendas_atual = df_ano_atual.groupby('Mes')['Qtd'].sum().reset_index()
+                                meses_nomes = {
+                                    1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr',
+                                    5: 'Mai', 6: 'Jun', 7: 'Jul', 8: 'Ago',
+                                    9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'
+                                }
+                                vendas_atual['Mes_Nome'] = vendas_atual['Mes'].map(meses_nomes)
+
+                                fig = px.bar(
+                                    vendas_atual,
+                                    x='Mes_Nome',
+                                    y='Qtd',
+                                    title=f'Vendas {ano_atual} - {produto_selecionado}',
+                                    labels={'Qtd': 'Quantidade', 'Mes_Nome': 'Mês'},
+                                    color='Qtd',
+                                    color_continuous_scale='Blues',
+                                    height=400
+                                )
+
+                                st.plotly_chart(fig, use_container_width=True)
+
+                            else:
+                                st.warning("Dados insuficientes para comparação anual.")
+                        else:
+                            st.warning("Nenhum dado disponível para este produto.")
+
+                st.markdown("---")
+
+                # ========== EXPORTAÇÃO ==========
+                st.subheader("💾 Exportar Dados")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    # CSV
+                    csv = df_forecast_filtrado.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Descarregar CSV",
+                        data=csv,
+                        file_name=f"forecast_encomendas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+
+                with col2:
+                    # Excel
+                    buffer = BytesIO()
+                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                        df_forecast_filtrado.to_excel(writer, index=False, sheet_name='Forecast')
+
+                    st.download_button(
+                        label="📥 Descarregar Excel",
+                        data=buffer.getvalue(),
+                        file_name=f"forecast_encomendas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+
+        # Notas explicativas
+        st.markdown("---")
+        st.markdown("""
+        #### 📌 Notas Explicativas
+
+        - **Média Diária**: Quantidade média vendida por dia (baseada no período de análise)
+        - **Qtd Semanal**: Média Diária × 7 dias
+        - **Qtd Mensal**: Média Diária × 30 dias
+        - **Stock Segurança**: Buffer adicional baseado na variabilidade das vendas
+        - **Tendência**:
+            - 📈 Crescimento: >5% de aumento nas vendas
+            - ➡️ Estável: Entre -5% e +5%
+            - 📉 Queda: <-5% de redução nas vendas
+        - **Variabilidade (CV)**: Coeficiente de variação - quanto maior, mais irregular a demanda
+        - **Dias c/ Venda**: Número de dias com pelo menos uma venda no período
+
+        **Recomendação**: Produtos com alta variabilidade devem ter stock de segurança maior.
+        """)
 
 
 if __name__ == '__main__':

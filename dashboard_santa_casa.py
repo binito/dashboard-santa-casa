@@ -2563,27 +2563,33 @@ def main():
     min_date = df['Data'].min()
     max_date = df['Data'].max()
 
-    # Botões rápidos para anos
-    st.sidebar.markdown("**Atalhos de Ano:**")
-    col1, col2, col3, col4 = st.sidebar.columns(4)
+    # Botões rápidos para anos com Pills modernas
+    st.sidebar.markdown("**⚡ Atalhos de Ano:**")
 
     anos_unicos = sorted(df['Data'].dt.year.unique())
+    opcoes_anos = [str(ano) for ano in anos_unicos] + ["Todos"]
 
-    with col1:
-        if st.button("2023", key="year_2023", use_container_width=True):
-            st.session_state.selected_year = 2023
-    with col2:
-        if st.button("2024", key="year_2024", use_container_width=True):
-            st.session_state.selected_year = 2024
-    with col3:
-        if st.button("2025", key="year_2025", use_container_width=True):
-            st.session_state.selected_year = 2025
-    with col4:
-        if st.button("Todos", key="year_all", use_container_width=True):
-            st.session_state.selected_year = None
+    # Determinar seleção padrão
+    if "selected_year" not in st.session_state:
+        st.session_state.selected_year = None
+
+    default_selection = str(st.session_state.selected_year) if st.session_state.selected_year else "Todos"
+
+    ano_selecionado = st.sidebar.pills(
+        "Selecionar período",
+        options=opcoes_anos,
+        default=default_selection,
+        label_visibility="collapsed"
+    )
+
+    # Atualizar session_state baseado na seleção
+    if ano_selecionado == "Todos":
+        st.session_state.selected_year = None
+    else:
+        st.session_state.selected_year = int(ano_selecionado)
 
     # Aplicar filtro de ano rápido se selecionado
-    if "selected_year" in st.session_state and st.session_state.selected_year:
+    if st.session_state.selected_year:
         ano = st.session_state.selected_year
         date_range = (pd.Timestamp(f"{ano}-01-01"), pd.Timestamp(f"{ano}-12-31"))
     else:
