@@ -222,7 +222,7 @@ def carregar_dados():
 
 def carregar_objetivos():
     """Carrega objetivos semanais do CSV."""
-    objetivos_file = Path('/home/jorge/Documentos/Streamlit/objetivos_semanais.csv')
+    objetivos_file = Path('objetivos_semanais.csv')
 
     if not objetivos_file.exists():
         # Criar arquivo padrão se não existir
@@ -2571,7 +2571,7 @@ def main():
 
     # Determinar seleção padrão
     if "selected_year" not in st.session_state:
-        st.session_state.selected_year = None
+        st.session_state.selected_year = datetime.now().year  # Abre por padrão no ano atual
 
     default_selection = str(st.session_state.selected_year) if st.session_state.selected_year else "Todos"
 

@@ -1719,8 +1719,8 @@ def gerar_forecast_produtos(df, cost_manager, dias_analise=60, produtos_regulare
 # Interface principal
 def main():
     # Cabeçalho
-    st.markdown('<h1 class="main-title">🚀 Dashboard v8 - Café Martins (MariaDB Ultra-Rápido)</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Análise Completa com Custos REAIS (Despesify) + Rentabilidade + Jogos Santa Casa | Carregamento 10-50x mais rápido!</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">🚀 Dashboard  - Café Martins</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Análise Completa com Custos REAIS (Despesify) + Rentabilidade + Jogos Santa Casa</p>', unsafe_allow_html=True)
 
     # Carregar dados
     try:
@@ -1750,7 +1750,7 @@ def main():
 
     # Determinar seleção padrão
     if "selected_year" not in st.session_state:
-        st.session_state.selected_year = None
+        st.session_state.selected_year = datetime.now().year  # Abre por padrão no ano atual
 
     default_selection = str(st.session_state.selected_year) if st.session_state.selected_year else "Todos"
 
