@@ -210,7 +210,7 @@ def carregar_dados():
 
 def formatar_moeda(valor):
     """Formata valor em euros sem casas decimais"""
-    return f"€ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{valor:,.0f}€".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def formatar_percentagem(valor):
@@ -416,7 +416,7 @@ def criar_grafico_barras(df, x, y, titulo, orientacao='v', cor=None):
         yaxis_title=y
     )
 
-    fig.update_traces(texttemplate='€%{text:.2f}', textposition='outside')
+    fig.update_traces(texttemplate='%{text:.2f}€', textposition='outside')
 
     return fig
 
@@ -450,7 +450,7 @@ def criar_heatmap(df, titulo):
         y=df.index,
         colorscale='Blues',
         text=df.values,
-        texttemplate='€%{text:.0f}',
+        texttemplate='%{text:.0f}€',
         textfont={"size": 10},
         colorbar=dict(title="Vendas (€)")
     ))
@@ -472,7 +472,7 @@ def criar_grafico_waterfall(valores, labels, titulo):
         measure=["relative"] * (len(valores) - 1) + ["total"],
         x=labels,
         textposition="outside",
-        text=[f"€{v:,.0f}" for v in valores],
+        text=[f"{v:,.0f}€" for v in valores],
         y=valores,
         connector={"line": {"color": "rgb(63, 63, 63)"}},
     ))
@@ -892,11 +892,11 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
     num_jogos = df_filtrado['Jogo'].nunique()
 
     with col1:
-        st.metric("Total Vendas Ilíquidas", f"€{total_vendas:,.0f}")
+        st.metric("Total Vendas Ilíquidas", f"{total_vendas:,.0f}€")
     with col2:
-        st.metric("Total Remunerações", f"€{total_remuneracoes:,.0f}")
+        st.metric("Total Remunerações", f"{total_remuneracoes:,.0f}€")
     with col3:
-        st.metric("Total Prémios", f"€{total_premios:,.0f}")
+        st.metric("Total Prémios", f"{total_premios:,.0f}€")
     with col4:
         st.metric("Nº de Jogos", num_jogos)
 
@@ -949,10 +949,10 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Estatísticas
         st.markdown("#### 📊 Estatísticas Semanais")
         stats = {
-            'Semana com Maior Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].max():,.0f}",
-            'Semana com Menor Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].min():,.0f}",
-            'Média Semanal': f"€{vendas_semanal['Vendas ilíquidas (€)'].mean():,.0f}",
-            'Desvio Padrão': f"€{vendas_semanal['Vendas ilíquidas (€)'].std():,.0f}"
+            'Semana com Maior Vendas': f"{vendas_semanal['Vendas ilíquidas (€)'].max():,.0f}€",
+            'Semana com Menor Vendas': f"{vendas_semanal['Vendas ilíquidas (€)'].min():,.0f}€",
+            'Média Semanal': f"{vendas_semanal['Vendas ilíquidas (€)'].mean():,.0f}€",
+            'Desvio Padrão': f"{vendas_semanal['Vendas ilíquidas (€)'].std():,.0f}€"
         }
 
         col1, col2, col3, col4 = st.columns(4)
@@ -990,7 +990,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         )
 
         fig.update_traces(
-            text=top_jogos['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
+            text=top_jogos['Total Vendas'].apply(lambda x: f'{x:,.0f}€'),
             textposition='outside'
         )
 
@@ -999,8 +999,8 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Tabela detalhada
         st.markdown("#### 📋 Resumo Completo por Jogo")
         vendas_jogo_display = vendas_jogo.copy()
-        vendas_jogo_display['Total Vendas'] = vendas_jogo_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
-        vendas_jogo_display['Média Semanal'] = vendas_jogo_display['Média Semanal'].apply(lambda x: f'€{x:,.0f}')
+        vendas_jogo_display['Total Vendas'] = vendas_jogo_display['Total Vendas'].apply(lambda x: f'{x:,.0f}€')
+        vendas_jogo_display['Média Semanal'] = vendas_jogo_display['Média Semanal'].apply(lambda x: f'{x:,.0f}€')
         st.dataframe(vendas_jogo_display, use_container_width=True, hide_index=True)
 
     with tab3:
@@ -1037,7 +1037,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         )
 
         fig_barras.update_traces(
-            text=vendas_cat['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
+            text=vendas_cat['Total Vendas'].apply(lambda x: f'{x:,.0f}€'),
             textposition='outside'
         )
 
@@ -1046,7 +1046,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Tabela
         st.markdown("#### 📊 Detalhes por Categoria")
         vendas_cat_display = vendas_cat.copy()
-        vendas_cat_display['Total Vendas'] = vendas_cat_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
+        vendas_cat_display['Total Vendas'] = vendas_cat_display['Total Vendas'].apply(lambda x: f'{x:,.0f}€')
         st.dataframe(vendas_cat_display, use_container_width=True, hide_index=True)
 
     with tab4:
@@ -1080,7 +1080,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Tabela de comparação
         st.markdown("#### 📊 Tabela Comparativa Semanal")
         pivot_vendas = vendas_semana_jogo.pivot(index='Data', columns='Jogo', values='Vendas ilíquidas (€)').fillna(0)
-        pivot_vendas = pivot_vendas.applymap(lambda x: f'€{x:,.0f}' if x > 0 else '-')
+        pivot_vendas = pivot_vendas.applymap(lambda x: f'{x:,.0f}€' if x > 0 else '-')
         st.dataframe(pivot_vendas, use_container_width=True)
 
     with tab5:
@@ -1143,7 +1143,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         st.markdown("#### 📊 Tabela Resumida - Crescimento Mês a Mês")
         tabela_mom = vendas_mes_filtrado[['Jogo', 'Ano_Mes', 'Vendas ilíquidas (€)', 'Crescimento_MoM']].copy()
         tabela_mom = tabela_mom.sort_values(['Jogo', 'Ano_Mes'])
-        tabela_mom['Vendas ilíquidas (€)'] = tabela_mom['Vendas ilíquidas (€)'].apply(lambda x: f'€{x:,.0f}')
+        tabela_mom['Vendas ilíquidas (€)'] = tabela_mom['Vendas ilíquidas (€)'].apply(lambda x: f'{x:,.0f}€')
         tabela_mom['Crescimento_MoM'] = tabela_mom['Crescimento_MoM'].apply(lambda x: f'{x:+.1f}%')
         tabela_mom.columns = ['Jogo', 'Mês', 'Vendas', 'Crescimento %']
         st.dataframe(tabela_mom, use_container_width=True, hide_index=True)
@@ -1203,7 +1203,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Formatar valores
         for col in tabela_yoy.columns:
             if col != 'Variação %':
-                tabela_yoy[col] = tabela_yoy[col].apply(lambda x: f'€{x:,.0f}')
+                tabela_yoy[col] = tabela_yoy[col].apply(lambda x: f'{x:,.0f}€')
         tabela_yoy['Variação %'] = tabela_yoy.get('Variação %', pd.Series()).apply(lambda x: f'{x:+.1f}%' if isinstance(x, (int, float)) else x)
 
         st.dataframe(tabela_yoy, use_container_width=True)
@@ -1269,11 +1269,11 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
             ('Desvio Padrão', 'std')
         ]).reset_index().sort_values('Total', ascending=False)
 
-        stats_jogo['Total'] = stats_jogo['Total'].apply(lambda x: f'€{x:,.0f}')
-        stats_jogo['Média'] = stats_jogo['Média'].apply(lambda x: f'€{x:,.0f}')
-        stats_jogo['Máximo'] = stats_jogo['Máximo'].apply(lambda x: f'€{x:,.0f}')
-        stats_jogo['Mínimo'] = stats_jogo['Mínimo'].apply(lambda x: f'€{x:,.0f}')
-        stats_jogo['Desvio Padrão'] = stats_jogo['Desvio Padrão'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Total'] = stats_jogo['Total'].apply(lambda x: f'{x:,.0f}€')
+        stats_jogo['Média'] = stats_jogo['Média'].apply(lambda x: f'{x:,.0f}€')
+        stats_jogo['Máximo'] = stats_jogo['Máximo'].apply(lambda x: f'{x:,.0f}€')
+        stats_jogo['Mínimo'] = stats_jogo['Mínimo'].apply(lambda x: f'{x:,.0f}€')
+        stats_jogo['Desvio Padrão'] = stats_jogo['Desvio Padrão'].apply(lambda x: f'{x:,.0f}€')
         stats_jogo.columns = ['Jogo', 'Nº Semanas', 'Total', 'Média', 'Máximo', 'Mínimo', 'Desvio']
 
         st.dataframe(stats_jogo, use_container_width=True, hide_index=True)
@@ -1329,19 +1329,19 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
             col1, col2, col3, col4, col5, col6 = st.columns(6)
 
             with col1:
-                st.metric(f"🎮 {jogo}", f"€{media_semana:,.0f}", "Média/Sem")
+                st.metric(f"🎮 {jogo}", f"{media_semana:,.0f}€", "Média/Sem")
 
             with col2:
-                st.metric("🎯 Objetivo", f"€{objetivo_semanal:,.0f}", "Meta/Sem")
+                st.metric("🎯 Objetivo", f"{objetivo_semanal:,.0f}€", "Meta/Sem")
 
             with col3:
                 st.metric("📊 % Cumprimento", f"{pct_cumprimento:.1f}%", f"{diferenca:+.0f}€")
 
             with col4:
-                st.metric("📅 Proj. 4 Sem", f"€{projecao_4sem:,.0f}", "")
+                st.metric("📅 Proj. 4 Sem", f"{projecao_4sem:,.0f}€", "")
 
             with col5:
-                st.metric("📈 Proj. Anual", f"€{projecao_anual:,.0f}", "")
+                st.metric("📈 Proj. Anual", f"{projecao_anual:,.0f}€", "")
 
             with col6:
                 st.metric("Status", status, "")
@@ -1355,27 +1355,27 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
                 elif pct_cumprimento >= 100:
                     st.success(f"""
                     ✅ **{jogo}** está **acima do objetivo**!
-                    - Objetivo semanal: €{objetivo_semanal:,.0f}
-                    - Performance atual: €{media_semana:,.0f} (+{pct_cumprimento-100:.1f}%)
-                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Objetivo semanal: {objetivo_semanal:,.0f}€
+                    - Performance atual: {media_semana:,.0f}€ (+{pct_cumprimento-100:.1f}%)
+                    - Projeção anual: {projecao_anual:,.0f}€
                     - Tendência: Excelente 🚀
                     """)
                 elif pct_cumprimento >= 90:
                     st.info(f"""
                     📈 **{jogo}** está **próximo do objetivo**!
-                    - Objetivo semanal: €{objetivo_semanal:,.0f}
-                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
-                    - Diferença: €{diferenca:,.0f}
-                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Objetivo semanal: {objetivo_semanal:,.0f}€
+                    - Performance atual: {media_semana:,.0f}€ ({pct_cumprimento:.1f}%)
+                    - Diferença: {diferenca:,.0f}€
+                    - Projeção anual: {projecao_anual:,.0f}€
                     - Tendência: Bom desempenho 💪
                     """)
                 else:
                     st.warning(f"""
                     ⚠️ **{jogo}** está **abaixo do objetivo**.
-                    - Objetivo semanal: €{objetivo_semanal:,.0f}
-                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
-                    - Diferença: €{diferenca:,.0f}
-                    - Projeção anual: €{projecao_anual:,.0f}
+                    - Objetivo semanal: {objetivo_semanal:,.0f}€
+                    - Performance atual: {media_semana:,.0f}€ ({pct_cumprimento:.1f}%)
+                    - Diferença: {diferenca:,.0f}€
+                    - Projeção anual: {projecao_anual:,.0f}€
                     - Tendência: Necessário esforço adicional 💡
                     """)
 
@@ -1386,7 +1386,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
                         go.Bar(
                             x=['Atual', 'Objetivo'],
                             y=[media_semana, objetivo_semanal],
-                            text=[f'€{media_semana:,.0f}', f'€{objetivo_semanal:,.0f}'],
+                            text=[f'{media_semana:,.0f}€', f'{objetivo_semanal:,.0f}€'],
                             textposition='outside',
                             marker=dict(
                                 color=['#1f77b4' if media_semana >= objetivo_semanal else '#ff7f0e', '#2ca02c'],
@@ -3397,7 +3397,7 @@ def main():
 
                     # Mostrar total
                     total_editado = df_editado['Valor_Mensal'].sum()
-                    st.metric("💰 Total Mensal (Editado)", f"€{total_editado:,.2f}")
+                    st.metric("💰 Total Mensal (Editado)", f"{total_editado:,.2f}€")
 
                 else:
                     st.error(f"❌ Ficheiro não encontrado: {csv_path}")
@@ -3462,7 +3462,7 @@ def main():
 
                         # Mostrar total
                         total_editado = df_editado['Valor_Mensal'].sum()
-                        st.metric("💰 Total Mensal (Editado - CSV)", f"€{total_editado:,.2f}")
+                        st.metric("💰 Total Mensal (Editado - CSV)", f"{total_editado:,.2f}€")
                     else:
                         st.info("ℹ️ Não há custos estimados no CSV para editar. Todos os custos operacionais vêm do Despesify.")
                 else:
@@ -3692,8 +3692,8 @@ def main():
                         ]
 
                         df_display['Data'] = pd.to_datetime(df_display['Data']).dt.strftime('%d/%m/%Y')
-                        df_display['Total (€)'] = df_display['Total (€)'].apply(lambda x: f"€{x:,.2f}")
-                        df_display['IVA (€)'] = df_display['IVA (€)'].apply(lambda x: f"€{x:,.2f}" if pd.notna(x) else "N/A")
+                        df_display['Total (€)'] = df_display['Total (€)'].apply(lambda x: f"{x:,.2f}€")
+                        df_display['IVA (€)'] = df_display['IVA (€)'].apply(lambda x: f"{x:,.2f}€" if pd.notna(x) else "N/A")
 
                         st.dataframe(df_display, use_container_width=True, height=300)
 
@@ -3726,9 +3726,9 @@ def main():
 
                                 with col2:
                                     st.markdown("### 💰 Valores")
-                                    st.metric("Total", f"€{detalhes.get('amount', 0):,.2f}")
-                                    st.metric("Base Tributável", f"€{detalhes.get('base_tributavel', 0):,.2f}" if detalhes.get('base_tributavel') else "N/A")
-                                    st.metric("IVA Total", f"€{detalhes.get('vat_amount', 0):,.2f}" if detalhes.get('vat_amount') else "N/A")
+                                    st.metric("Total", f"{detalhes.get('amount', 0):,.2f}€")
+                                    st.metric("Base Tributável", f"{detalhes.get('base_tributavel', 0):,.2f}€" if detalhes.get('base_tributavel') else "N/A")
+                                    st.metric("IVA Total", f"{detalhes.get('vat_amount', 0):,.2f}€" if detalhes.get('vat_amount') else "N/A")
 
                                 # Breakdown de IVA
                                 if detalhes.get('linhas_iva'):
@@ -3751,9 +3751,9 @@ def main():
                                                 'Base Tributável (€)', 'Taxa IVA (%)', 'Valor IVA (€)'
                                             ]
 
-                                            df_iva_display['Base Tributável (€)'] = df_iva_display['Base Tributável (€)'].apply(lambda x: f"€{x:,.2f}")
+                                            df_iva_display['Base Tributável (€)'] = df_iva_display['Base Tributável (€)'].apply(lambda x: f"{x:,.2f}€")
                                             df_iva_display['Taxa IVA (%)'] = df_iva_display['Taxa IVA (%)'].apply(lambda x: f"{x:.2f}%")
-                                            df_iva_display['Valor IVA (€)'] = df_iva_display['Valor IVA (€)'].apply(lambda x: f"€{x:,.2f}")
+                                            df_iva_display['Valor IVA (€)'] = df_iva_display['Valor IVA (€)'].apply(lambda x: f"{x:,.2f}€")
 
                                             st.dataframe(df_iva_display, use_container_width=True, hide_index=True)
 
