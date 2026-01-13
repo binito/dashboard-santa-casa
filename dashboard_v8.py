@@ -1770,7 +1770,9 @@ def main():
     # Aplicar filtro de ano rápido se selecionado
     if st.session_state.selected_year:
         ano = st.session_state.selected_year
-        date_range = (pd.Timestamp(f"{ano}-01-01").date(), pd.Timestamp(f"{ano}-12-31").date())
+        # Limitar data_fim ao máximo de dados disponíveis nesse ano
+        data_max_ano = df[df['Data'].dt.year == ano]['Data'].max().date()
+        date_range = (pd.Timestamp(f"{ano}-01-01").date(), data_max_ano)
     else:
         date_range = st.sidebar.date_input(
             "Período",
@@ -1858,10 +1860,10 @@ def main():
     media_diaria = df_filtrado.groupby('Data')['Valor'].sum().mean()
     ticket_medio = total_vendas / total_quantidade if total_quantidade > 0 else 0
 
-    # Calcular período anterior para comparação
+    # Calcular período anterior para comparação (mesmo período do ano anterior)
     dias_periodo = (data_fim - data_inicio).days + 1
-    data_inicio_anterior = data_inicio - timedelta(days=dias_periodo)
-    data_fim_anterior = data_inicio - timedelta(days=1)
+    data_inicio_anterior = data_inicio - timedelta(days=365)
+    data_fim_anterior = data_fim - timedelta(days=365)
 
     df_anterior = filtrar_dados(
         df,
@@ -2408,6 +2410,11 @@ def main():
         # Taxa de crescimento por categoria
         st.subheader("📊 Taxa de Crescimento por Categoria")
 
+        # Mostrar períodos de comparação
+        st.caption(f"📅 **Período Atual:** {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")
+        if not df_anterior.empty:
+            st.caption(f"📅 **Período Comparação:** {data_inicio_anterior.strftime('%d/%m/%Y')} a {data_fim_anterior.strftime('%d/%m/%Y')} (mesmo período ano anterior)")
+
         if not df_anterior.empty:
             crescimento_cat = pd.DataFrame({
                 'Atual': df_filtrado.groupby('Categoria')['Valor'].sum(),
@@ -2437,6 +2444,58 @@ def main():
             st.plotly_chart(fig_crescimento, use_container_width=True)
         else:
             st.info("Dados do período anterior não disponíveis para comparação.")
+
+        # Taxa de crescimento vs período consecutivo anterior
+        st.subheader("📊 Taxa de Crescimento vs Período Consecutivo")
+
+        # Calcular período consecutivo anterior (imediatamente antes do período atual)
+        dias_periodo_atual = (data_fim - data_inicio).days + 1
+        data_inicio_consecutivo = data_inicio - timedelta(days=dias_periodo_atual)
+        data_fim_consecutivo = data_inicio - timedelta(days=1)
+
+        st.caption(f"📅 **Período Atual:** {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")
+        st.caption(f"📅 **Período Consecutivo:** {data_inicio_consecutivo.strftime('%d/%m/%Y')} a {data_fim_consecutivo.strftime('%d/%m/%Y')} ({dias_periodo_atual} dias anteriores)")
+
+        # Filtrar dados do período consecutivo
+        df_consecutivo = filtrar_dados(
+            df,
+            categorias_selecionadas,
+            subcategorias_selecionadas,
+            fontes_selecionadas,
+            data_inicio_consecutivo,
+            data_fim_consecutivo,
+            apenas_dias_uteis
+        )
+
+        if not df_consecutivo.empty:
+            crescimento_consecutivo = pd.DataFrame({
+                'Atual': df_filtrado.groupby('Categoria')['Valor'].sum(),
+                'Consecutivo': df_consecutivo.groupby('Categoria')['Valor'].sum()
+            }).fillna(0)
+
+            crescimento_consecutivo['Crescimento (%)'] = crescimento_consecutivo.apply(
+                lambda row: calcular_delta(row['Atual'], row['Consecutivo']),
+                axis=1
+            )
+
+            crescimento_consecutivo = crescimento_consecutivo.sort_values('Crescimento (%)', ascending=False)
+
+            fig_consecutivo = px.bar(
+                x=crescimento_consecutivo.index,
+                y=crescimento_consecutivo['Crescimento (%)'],
+                title='Taxa de Crescimento por Categoria (vs Período Consecutivo)',
+                labels={'x': 'Categoria', 'y': 'Crescimento (%)'},
+                color=crescimento_consecutivo['Crescimento (%)'],
+                color_continuous_scale='RdYlGn',
+                text=[f"{v:+.1f}%" for v in crescimento_consecutivo['Crescimento (%)']]
+            )
+
+            fig_consecutivo.update_layout(height=400, showlegend=False)
+            fig_consecutivo.add_hline(y=0, line_dash="dash", line_color="black")
+
+            st.plotly_chart(fig_consecutivo, use_container_width=True)
+        else:
+            st.info("Dados do período consecutivo não disponíveis para comparação.")
 
         st.markdown("---")
 
