@@ -819,6 +819,9 @@ def carregar_dados_santa_casa():
     df['Ano'] = df['Data'].dt.year
     df['Mes'] = df['Data'].dt.month
     df['Ano_Mes'] = df['Data'].dt.to_period('M').astype(str)
+    df['Semana'] = df['Data'].dt.isocalendar().week
+    df['Trimestre'] = df['Data'].dt.quarter
+    df['Dia_Semana'] = df['Data'].dt.dayofweek
 
     # Ordenar por data
     df = df.sort_values('Data')
@@ -2300,46 +2303,7 @@ def main():
             showlegend=False
         )
 
-        st.plotly_chart(fig_dia_semana, use_container_width=True)
-
-        # Heatmap: Dia da semana vs Categoria
-        st.subheader("🔥 Heatmap: Vendas por Dia da Semana e Categoria")
-
-        heatmap_data = df_filtrado.pivot_table(
-            values='Valor',
-            index='Dia_Semana_Nome',
-            columns='Categoria',
-            aggfunc='sum',
-            fill_value=0
-        )
-
-        heatmap_data = heatmap_data.reindex(dias_semana)
-
-        fig_heatmap = criar_heatmap(heatmap_data, 'Distribuição de Vendas')
-        st.plotly_chart(fig_heatmap, use_container_width=True)
-
-        # Análise por hora (se disponível)
-        if 'Data' in df_filtrado.columns:
-            st.subheader("🕐 Análise por Hora do Dia")
-
-            # Tentar extrair hora
-            df_filtrado['Hora'] = df_filtrado['Data'].dt.hour
-
-            if df_filtrado['Hora'].notna().any():
-                vendas_por_hora = df_filtrado.groupby('Hora')['Valor'].sum()
-
-                fig_hora = px.line(
-                    x=vendas_por_hora.index,
-                    y=vendas_por_hora.values,
-                    title='Vendas por Hora do Dia',
-                    labels={'x': 'Hora', 'y': 'Vendas (€)'},
-                    markers=True
-                )
-
-                fig_hora.update_layout(height=400)
-                st.plotly_chart(fig_hora, use_container_width=True)
-            else:
-                st.info("Informação de hora não disponível nos dados.")
+        st.plotly_chart(fig_dia_semana, use_container_width=True, key="chart_dia_semana")
 
         # Vendas por mês
         st.subheader("📆 Vendas por Mês")
@@ -2365,43 +2329,66 @@ def main():
                 showlegend=False
             )
 
-            st.plotly_chart(fig_mes, use_container_width=True)
+            st.plotly_chart(fig_mes, use_container_width=True, key="chart_vendas_mes")
 
         # Sazonalidade
         st.subheader("🌊 Análise de Sazonalidade")
 
-        col1, col2 = st.columns(2)
+        # Vendas por trimestre
+        if 'Trimestre' in df_filtrado.columns:
+            vendas_trimestre = df_filtrado.groupby('Trimestre')['Valor'].sum()
 
-        with col1:
-            # Vendas por trimestre
-            if 'Trimestre' in df_filtrado.columns:
-                vendas_trimestre = df_filtrado.groupby('Trimestre')['Valor'].sum()
+            fig_trimestre = px.pie(
+                values=vendas_trimestre.values,
+                names=[f'Q{i}' for i in vendas_trimestre.index],
+                title='Distribuição por Trimestre',
+                hole=0.4
+            )
 
-                fig_trimestre = px.pie(
-                    values=vendas_trimestre.values,
-                    names=[f'Q{i}' for i in vendas_trimestre.index],
-                    title='Distribuição por Trimestre',
-                    hole=0.4
-                )
+            fig_trimestre.update_layout(height=400)
+            st.plotly_chart(fig_trimestre, use_container_width=True, key="chart_trimestre")
 
-                fig_trimestre.update_layout(height=400)
-                st.plotly_chart(fig_trimestre, use_container_width=True)
+        # Análise Semanal
+        if 'Semana' in df_filtrado.columns:
+            st.markdown("---")
+            st.subheader("📅 Análise Semanal")
 
-        with col2:
-            # Vendas por semana
-            if 'Semana' in df_filtrado.columns:
-                vendas_semana = df_filtrado.groupby('Semana')['Valor'].sum().head(20)
+            col1, col2 = st.columns(2)
 
-                fig_semana = px.line(
-                    x=vendas_semana.index,
-                    y=vendas_semana.values,
-                    title='Vendas por Semana (Top 20)',
+            with col1:
+                # Opção 2: Todas as semanas (evolução temporal)
+                vendas_semana_todas = df_filtrado.groupby('Semana')['Valor'].sum().sort_index()
+
+                fig_semana_todas = px.line(
+                    x=vendas_semana_todas.index,
+                    y=vendas_semana_todas.values,
+                    title='Evolução Semanal - Todas as Semanas',
                     labels={'x': 'Semana do Ano', 'y': 'Vendas (€)'},
                     markers=True
                 )
 
-                fig_semana.update_layout(height=400)
-                st.plotly_chart(fig_semana, use_container_width=True)
+                fig_semana_todas.update_layout(height=400)
+                st.plotly_chart(fig_semana_todas, use_container_width=True, key="chart_semana_todas")
+                st.caption(f"📊 Total de {len(vendas_semana_todas)} semanas no período")
+
+            with col2:
+                # Opção 3: Top 20 semanas com mais vendas (ranking real)
+                vendas_semana_top = df_filtrado.groupby('Semana')['Valor'].sum().sort_values(ascending=False).head(20)
+
+                fig_semana_top = px.bar(
+                    x=[f"S{s}" for s in vendas_semana_top.index],
+                    y=vendas_semana_top.values,
+                    title='Top 20 Semanas com Mais Vendas',
+                    labels={'x': 'Semana do Ano', 'y': 'Vendas (€)'},
+                    text=[formatar_moeda(v) for v in vendas_semana_top.values],
+                    color=vendas_semana_top.values,
+                    color_continuous_scale='Viridis'
+                )
+
+                fig_semana_top.update_layout(height=400, showlegend=False)
+                fig_semana_top.update_traces(textposition='outside')
+                st.plotly_chart(fig_semana_top, use_container_width=True, key="chart_semana_top20")
+                st.caption(f"🏆 Melhores semanas: S{vendas_semana_top.index[0]} lidera com {formatar_moeda(vendas_semana_top.values[0])}")
 
     # TAB 4 - Performance & KPIs
     with tab4:
@@ -2441,7 +2428,7 @@ def main():
             fig_crescimento.update_layout(height=400, showlegend=False)
             fig_crescimento.add_hline(y=0, line_dash="dash", line_color="black")
 
-            st.plotly_chart(fig_crescimento, use_container_width=True)
+            st.plotly_chart(fig_crescimento, use_container_width=True, key="chart_crescimento_homologo")
         else:
             st.info("Dados do período anterior não disponíveis para comparação.")
 
@@ -2493,7 +2480,7 @@ def main():
             fig_consecutivo.update_layout(height=400, showlegend=False)
             fig_consecutivo.add_hline(y=0, line_dash="dash", line_color="black")
 
-            st.plotly_chart(fig_consecutivo, use_container_width=True)
+            st.plotly_chart(fig_consecutivo, use_container_width=True, key="chart_crescimento_consecutivo")
         else:
             st.info("Dados do período consecutivo não disponíveis para comparação.")
 
