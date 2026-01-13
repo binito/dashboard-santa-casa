@@ -2408,7 +2408,7 @@ def main():
         st.header("🎯 Performance & KPIs Avançados")
 
         # Taxa de crescimento por categoria
-        st.subheader("📊 Taxa de Crescimento vs Periodo homólogo")
+        st.subheader("📊 Taxa de Crescimento vs Período homólogo")
 
         # Mostrar períodos de comparação
         st.caption(f"📅 **Período Atual:** {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")
@@ -2431,7 +2431,7 @@ def main():
             fig_crescimento = px.bar(
                 x=crescimento_cat.index,
                 y=crescimento_cat['Crescimento (%)'],
-                title='Taxa de Crescimento por Categoria (vs Período Anterior)',
+                #title='Taxa de Crescimento por Categoria (vs Período homólogo)',
                 labels={'x': 'Categoria', 'y': 'Crescimento (%)'},
                 color=crescimento_cat['Crescimento (%)'],
                 color_continuous_scale='RdYlGn',
@@ -2483,7 +2483,7 @@ def main():
             fig_consecutivo = px.bar(
                 x=crescimento_consecutivo.index,
                 y=crescimento_consecutivo['Crescimento (%)'],
-                title='Taxa de Crescimento por Categoria (vs Período Consecutivo)',
+                #title='Taxa de Crescimento por Categoria (vs Período Consecutivo)',
                 labels={'x': 'Categoria', 'y': 'Crescimento (%)'},
                 color=crescimento_consecutivo['Crescimento (%)'],
                 color_continuous_scale='RdYlGn',
