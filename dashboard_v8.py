@@ -2408,7 +2408,7 @@ def main():
         st.header("🎯 Performance & KPIs Avançados")
 
         # Taxa de crescimento por categoria
-        st.subheader("📊 Taxa de Crescimento por Categoria")
+        st.subheader("📊 Taxa de Crescimento vs Periodo homólogo")
 
         # Mostrar períodos de comparação
         st.caption(f"📅 **Período Atual:** {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")

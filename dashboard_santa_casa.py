@@ -672,7 +672,7 @@ def renderizar_indicadores_principais(df):
         st.markdown(f"""
         <div class="kpi-card-yellow">
             <div class="kpi-icon">💎</div>
-            <div class="kpi-label">💎 Total Prestações</div>
+            <div class="kpi-label">Prestações</div>
             <div class="kpi-value">{formatar_euro(total_liquido)}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -1860,19 +1860,19 @@ def pagina_dashboard_executivo(df):
         col1, col2, col3, col4, col5, col6 = st.columns(6)
 
         with col1:
-            st.metric(f"🎮 {jogo}", f"{media_semana:,.0f}€", "Média/Sem")
+            st.metric(f"🎮 {jogo}", f"{media_semana:,.0f}€".replace(',', '.'), "Média/Sem")
 
         with col2:
-            st.metric("🎯 Objetivo", f"{objetivo_semanal:,.0f}€", "Meta/Sem")
+            st.metric("🎯 Objetivo", f"{objetivo_semanal:,.0f}€".replace(',', '.'), "Meta/Sem")
 
         with col3:
             st.metric("📊 % Cumprimento", f"{pct_cumprimento:.1f}%", f"{diferenca:+.0f}€")
 
         with col4:
-            st.metric("📅 Proj. 4 Sem", f"{projecao_4sem:,.0f}€", "")
+            st.metric("📅 Proj. 4 Sem", f"{projecao_4sem:,.0f}€".replace(',', '.'), "")
 
         with col5:
-            st.metric("📈 Proj. Anual", f"{projecao_anual:,.0f}€", "")
+            st.metric("📈 Proj. Anual", f"{projecao_anual:,.0f}€".replace(',', '.'), "")
 
         with col6:
             st.metric("Status", status, "")
@@ -1884,39 +1884,51 @@ def pagina_dashboard_executivo(df):
             if objetivo_semanal == 0:
                 st.info(f"ℹ️ **{jogo}** - Sem objetivo definido para este ano")
             elif pct_cumprimento >= 100:
+                objetivo_fmt = f"{objetivo_semanal:,.0f}€".replace(',', '.')
+                projecao_fmt = f"{projecao_anual:,.0f}€".replace(',', '.')
                 st.success(f"""
                 ✅ **{jogo}** está **acima do objetivo**!
-                - Objetivo semanal: {objetivo_semanal:,.0f}€
-                - Projeção anual: {projecao_anual:,.0f}€
+                - Objetivo semanal: {objetivo_fmt}
+                - Projeção anual: {projecao_fmt}
                 - Tendência: Excelente 🚀
                 """)
             elif pct_cumprimento >= 90:
+                objetivo_fmt = f"{objetivo_semanal:,.0f}€".replace(',', '.')
+                media_fmt = f"{media_semana:,.0f}€".replace(',', '.')
+                diferenca_fmt = f"{diferenca:+.0f}€"
+                projecao_fmt = f"{projecao_anual:,.0f}€".replace(',', '.')
                 st.info(f"""
                 📈 **{jogo}** está **próximo do objetivo**!
-                - Objetivo semanal: {objetivo_semanal:,.0f}€
-                - Performance atual: {media_semana:,.0f}€ ({pct_cumprimento:.1f}%)
-                - Diferença: {diferenca:+.0f}€
-                - Projeção anual: {projecao_anual:,.0f}€
+                - Objetivo semanal: {objetivo_fmt}
+                - Performance atual: {media_fmt} ({pct_cumprimento:.1f}%)
+                - Diferença: {diferenca_fmt}
+                - Projeção anual: {projecao_fmt}
                 - Tendência: Bom desempenho 💪
                 """)
             else:
+                objetivo_fmt = f"{objetivo_semanal:,.0f}€".replace(',', '.')
+                media_fmt = f"{media_semana:,.0f}€".replace(',', '.')
+                diferenca_fmt = f"{diferenca:+.0f}€"
+                projecao_fmt = f"{projecao_anual:,.0f}€".replace(',', '.')
                 st.warning(f"""
                 ⚠️ **{jogo}** está **abaixo do objetivo**.
-                - Objetivo semanal: {objetivo_semanal:,.0f}€
-                - Performance atual: {media_semana:,.0f}€ ({pct_cumprimento:.1f}%)
-                - Diferença: {diferenca:+.0f}€
-                - Projeção anual: {projecao_anual:,.0f}€
+                - Objetivo semanal: {objetivo_fmt}
+                - Performance atual: {media_fmt} ({pct_cumprimento:.1f}%)
+                - Diferença: {diferenca_fmt}
+                - Projeção anual: {projecao_fmt}
                 - Tendência: Necessário esforço adicional 💡
                 """)
 
         # Pequeno gráfico ao lado
         with col_graf:
             if objetivo_semanal > 0:
+                media_fmt = f'{media_semana:,.0f}€'.replace(',', '.')
+                objetivo_fmt = f'{objetivo_semanal:,.0f}€'.replace(',', '.')
                 fig_mini = go.Figure(data=[
                     go.Bar(
                         x=['Atual', 'Objetivo'],
                         y=[media_semana, objetivo_semanal],
-                        text=[f'{media_semana:,.0f}€', f'{objetivo_semanal:,.0f}€'],
+                        text=[media_fmt, objetivo_fmt],
                         textposition='outside',
                         marker=dict(
                             color=['#1f77b4' if media_semana >= objetivo_semanal else '#ff7f0e', '#2ca02c'],
