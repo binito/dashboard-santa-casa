@@ -112,6 +112,15 @@ class CostManagerV2:
             self.custos_operacionais_estimados = pd.DataFrame()
             self.margens_categorias = pd.DataFrame()
 
+    def get_total_custos_operacionais(self) -> float:
+        """
+        Retorna o total mensal de custos operacionais (estimado ou real)
+        Por padrão, retorna a soma dos custos fixos estimados no CSV
+        """
+        if self.custos_operacionais_estimados is not None and not self.custos_operacionais_estimados.empty:
+            return self.custos_operacionais_estimados['Valor'].sum()
+        return 0.0
+
     def get_custo_produto(self, nome_produto: str, categoria: str = None) -> float:
         """
         Retorna o custo unitário de um produto (do CSV)
@@ -188,11 +197,139 @@ class CostManagerV2:
             custo_total = custo_unitario * qtd
             return (custo_total, 'custo')
 
+    def _calcular_custos_estimados_periodo(self, data_inicio: datetime, data_fim: datetime) -> Tuple[float, float]:
+        """
+        Calcula custos fixos e variáveis estimados do CSV para um período
+        (usado para detectar se custos reais estão incompletos)
+
+        Args:
+            data_inicio: Data inicial
+            data_fim: Data final
+
+        Returns:
+            Tuple (custos_fixos_total, custos_variaveis_total)
+        """
+        if self.custos_operacionais_estimados is None or self.custos_operacionais_estimados.empty:
+            return (0.0, 0.0)
+
+        # Separar custos fixos e variáveis
+        df_custos = self.custos_operacionais_estimados[
+            self.custos_operacionais_estimados['Tipo'] != 'Calculado'
+        ].copy()
+
+        custos_fixos = df_custos[df_custos['Tipo'] == 'Fixo']
+        custos_variaveis = df_custos[df_custos['Tipo'] == 'Variável']
+
+        # Calcular custos fixos mensais
+        total_fixos_mensal = custos_fixos['Valor_Mensal'].sum()
+        total_variaveis_mensal = custos_variaveis['Valor_Mensal'].sum()
+
+        # Verificar quantos dias 28 estão no período
+        meses_com_dia28 = []
+        data_atual = data_inicio.replace(day=1)
+
+        while data_atual <= data_fim:
+            try:
+                dia28 = data_atual.replace(day=28)
+                if data_inicio <= dia28 <= data_fim:
+                    meses_com_dia28.append(dia28)
+            except ValueError:
+                pass
+
+            # Avançar para o próximo mês
+            if data_atual.month == 12:
+                data_atual = data_atual.replace(year=data_atual.year + 1, month=1)
+            else:
+                data_atual = data_atual.replace(month=data_atual.month + 1)
+
+        # Calcular totais
+        custo_fixos_total = total_fixos_mensal * len(meses_com_dia28)
+        dias_periodo = (data_fim - data_inicio).days + 1
+        custo_variaveis_total = (total_variaveis_mensal / 30) * dias_periodo
+
+        return (custo_fixos_total, custo_variaveis_total)
+
+    def _criar_dataframe_hibrido(self, df_despesas_reais: pd.DataFrame,
+                                 data_inicio: datetime, data_fim: datetime,
+                                 custos_fixos_estimados: float) -> pd.DataFrame:
+        """
+        Cria DataFrame híbrido combinando despesas reais + custos fixos estimados
+
+        Args:
+            df_despesas_reais: DataFrame com despesas reais do Despesify
+            data_inicio: Data inicial do período
+            data_fim: Data final do período
+            custos_fixos_estimados: Total de custos fixos estimados a adicionar
+
+        Returns:
+            DataFrame combinado
+        """
+        # Copiar despesas reais
+        registros = []
+
+        # Adicionar despesas reais (se houver)
+        if not df_despesas_reais.empty:
+            for _, row in df_despesas_reais.iterrows():
+                registros.append({
+                    'Categoria_Dashboard': row.get('Categoria_Dashboard', 'Outros'),
+                    'Valor_Total': row.get('Valor_Total', 0),
+                    'Tipo': 'Variável (Real)',
+                    'Detalhes': 'Despesify - Real'
+                })
+
+        # Adicionar custos fixos estimados do CSV (agrupados)
+        if custos_fixos_estimados > 0 and self.custos_operacionais_estimados is not None:
+            df_custos = self.custos_operacionais_estimados[
+                self.custos_operacionais_estimados['Tipo'] != 'Calculado'
+            ].copy()
+            custos_fixos = df_custos[df_custos['Tipo'] == 'Fixo']
+
+            # Verificar quantos meses com dia 28 estão no período
+            meses_com_dia28 = []
+            data_atual = data_inicio.replace(day=1)
+
+            while data_atual <= data_fim:
+                try:
+                    dia28 = data_atual.replace(day=28)
+                    if data_inicio <= dia28 <= data_fim:
+                        meses_com_dia28.append(dia28)
+                except ValueError:
+                    pass
+
+                if data_atual.month == 12:
+                    data_atual = data_atual.replace(year=data_atual.year + 1, month=1)
+                else:
+                    data_atual = data_atual.replace(month=data_atual.month + 1)
+
+            # Adicionar custos fixos por categoria
+            if not custos_fixos.empty and len(meses_com_dia28) > 0:
+                for categoria in custos_fixos['Categoria'].unique():
+                    valor_cat = custos_fixos[custos_fixos['Categoria'] == categoria]['Valor_Mensal'].sum()
+                    valor_total = valor_cat * len(meses_com_dia28)
+
+                    registros.append({
+                        'Categoria_Dashboard': f"{categoria} (Fixo Estimado)",
+                        'Valor_Total': valor_total,
+                        'Tipo': 'Fixo (Estimado)',
+                        'Detalhes': f"{len(meses_com_dia28)}x dia 28 (CSV)"
+                    })
+
+        return pd.DataFrame(registros) if registros else pd.DataFrame({
+            'Categoria_Dashboard': [],
+            'Valor_Total': [],
+            'Tipo': [],
+            'Detalhes': []
+        })
+
     def get_custos_operacionais_periodo(self, data_inicio: datetime, data_fim: datetime) -> Tuple[float, str, pd.DataFrame]:
         """
-        Retorna custos operacionais de um período usando:
+        Retorna custos operacionais de um período usando LÓGICA HÍBRIDA INTELIGENTE:
         - Despesas REAIS do Despesify (se disponível)
-        - Custos ESTIMADOS dos CSVs (fallback)
+        - Se custos reais < 50% do esperado: ADICIONA custos fixos estimados do CSV
+          (porque as despesas fixas como renda/ordenados só caem no dia 28)
+        - Custos ESTIMADOS dos CSVs (fallback completo) com lógica:
+          * Custos FIXOS: Lançados automaticamente no dia 28 de cada mês
+          * Custos VARIÁVEIS: Proporcionais aos dias do período
 
         Args:
             data_inicio: Data inicial do período
@@ -200,32 +337,135 @@ class CostManagerV2:
 
         Returns:
             Tuple (custo_total, fonte, dataframe_detalhes)
-            - fonte pode ser 'REAL' ou 'ESTIMADO'
+            - fonte pode ser 'REAL', 'HÍBRIDO' ou 'ESTIMADO'
         """
         # Verificar se deve usar Despesify
         if self.despesify_loader and data_inicio >= self.DATA_INICIO_DESPESIFY:
             try:
-                # Usar despesas REAIS
-                total, df_despesas = self.despesify_loader.get_despesas_operacionais_periodo(
+                # Carregar despesas REAIS
+                total_real, df_despesas_reais = self.despesify_loader.get_despesas_operacionais_periodo(
                     data_inicio, data_fim
                 )
-                return (total, 'REAL', df_despesas)
+
+                # LÓGICA HÍBRIDA INTELIGENTE:
+                # Calcular custos esperados do período para comparação
+                custos_fixos_esperados, custos_variaveis_esperados = self._calcular_custos_estimados_periodo(
+                    data_inicio, data_fim
+                )
+                total_esperado = custos_fixos_esperados + custos_variaveis_esperados
+
+                # Se custos reais < 50% do esperado, significa que custos fixos ainda não foram lançados
+                # (porque renda, ordenados, etc. só caem no dia 28)
+                if total_real < (total_esperado * 0.5) and custos_fixos_esperados > 0:
+                    # MODO HÍBRIDO: Custos reais variáveis + Custos fixos estimados
+                    print(f"💡 Modo HÍBRIDO ativado: Custos reais (€{total_real:.2f}) < 50% do esperado (€{total_esperado:.2f})")
+                    print(f"   Adicionando custos fixos estimados (€{custos_fixos_esperados:.2f}) aos custos reais")
+
+                    # Criar DataFrame híbrido combinando reais + estimados fixos
+                    df_hibrido = self._criar_dataframe_hibrido(
+                        df_despesas_reais,
+                        data_inicio,
+                        data_fim,
+                        custos_fixos_esperados
+                    )
+
+                    total_hibrido = total_real + custos_fixos_esperados
+                    return (total_hibrido, 'HÍBRIDO (Reais + Fixos Estimados)', df_hibrido)
+                else:
+                    # Custos reais suficientes - usar apenas dados reais
+                    return (total_real, 'REAL', df_despesas_reais)
+
             except Exception as e:
                 print(f"⚠️ Erro ao carregar despesas reais: {e}. Usando estimativa.")
 
-        # Fallback: usar custos estimados dos CSVs
-        dias = (data_fim - data_inicio).days + 1
-        custo_mensal = self.get_custos_operacionais_mensais_estimados()
-        custo_periodo = (custo_mensal / 30) * dias
+        # Fallback: usar custos estimados dos CSVs com lógica de regime de caixa
+        if self.custos_operacionais_estimados is None or self.custos_operacionais_estimados.empty:
+            df_vazio = pd.DataFrame({
+                'Categoria_Dashboard': [],
+                'Valor_Total': [],
+                'Tipo': []
+            })
+            return (0.0, 'ESTIMADO', df_vazio)
 
-        # Criar DataFrame estimado para compatibilidade
-        df_estimado = pd.DataFrame({
-            'Categoria_Dashboard': ['Custos Operacionais Estimados'],
-            'Valor_Total': [custo_periodo],
-            'Tipo': ['Estimado']
+        # Separar custos fixos e variáveis
+        df_custos = self.custos_operacionais_estimados[
+            self.custos_operacionais_estimados['Tipo'] != 'Calculado'
+        ].copy()
+
+        custos_fixos = df_custos[df_custos['Tipo'] == 'Fixo']
+        custos_variaveis = df_custos[df_custos['Tipo'] == 'Variável']
+
+        # Calcular total de custos fixos mensais
+        total_fixos_mensal = custos_fixos['Valor_Mensal'].sum()
+        total_variaveis_mensal = custos_variaveis['Valor_Mensal'].sum()
+
+        # Verificar quantos dias 28 estão no período
+        meses_com_dia28 = []
+        data_atual = data_inicio.replace(day=1)  # Começar no dia 1 do mês inicial
+
+        while data_atual <= data_fim:
+            # Tentar criar data do dia 28 deste mês
+            try:
+                dia28 = data_atual.replace(day=28)
+                # Verificar se o dia 28 está dentro do período
+                if data_inicio <= dia28 <= data_fim:
+                    meses_com_dia28.append(dia28)
+            except ValueError:
+                pass  # Mês não tem dia 28 (impossível, mas por segurança)
+
+            # Avançar para o próximo mês
+            if data_atual.month == 12:
+                data_atual = data_atual.replace(year=data_atual.year + 1, month=1)
+            else:
+                data_atual = data_atual.replace(month=data_atual.month + 1)
+
+        # Calcular custos fixos (apenas nos meses que têm dia 28 no período)
+        custo_fixos_total = total_fixos_mensal * len(meses_com_dia28)
+
+        # Calcular custos variáveis (proporcionais aos dias)
+        dias_periodo = (data_fim - data_inicio).days + 1
+        custo_variaveis_total = (total_variaveis_mensal / 30) * dias_periodo
+
+        # Total
+        custo_total = custo_fixos_total + custo_variaveis_total
+
+        # Criar DataFrame detalhado
+        registros = []
+
+        # Adicionar custos fixos agrupados por categoria
+        if not custos_fixos.empty and len(meses_com_dia28) > 0:
+            for categoria in custos_fixos['Categoria'].unique():
+                valor_cat = custos_fixos[custos_fixos['Categoria'] == categoria]['Valor_Mensal'].sum()
+                valor_total = valor_cat * len(meses_com_dia28)
+
+                registros.append({
+                    'Categoria_Dashboard': f"{categoria} (Fixo)",
+                    'Valor_Total': valor_total,
+                    'Tipo': 'Fixo',
+                    'Detalhes': f"{len(meses_com_dia28)}x dia 28"
+                })
+
+        # Adicionar custos variáveis agrupados por categoria
+        if not custos_variaveis.empty:
+            for categoria in custos_variaveis['Categoria'].unique():
+                valor_cat = custos_variaveis[custos_variaveis['Categoria'] == categoria]['Valor_Mensal'].sum()
+                valor_total = (valor_cat / 30) * dias_periodo
+
+                registros.append({
+                    'Categoria_Dashboard': f"{categoria} (Variável)",
+                    'Valor_Total': valor_total,
+                    'Tipo': 'Variável',
+                    'Detalhes': f"{dias_periodo} dias"
+                })
+
+        df_estimado = pd.DataFrame(registros) if registros else pd.DataFrame({
+            'Categoria_Dashboard': [],
+            'Valor_Total': [],
+            'Tipo': [],
+            'Detalhes': []
         })
 
-        return (custo_periodo, 'ESTIMADO', df_estimado)
+        return (custo_total, 'ESTIMADO', df_estimado)
 
     def get_custos_operacionais_mensais_estimados(self) -> float:
         """Retorna custos operacionais mensais ESTIMADOS do CSV"""
@@ -439,24 +679,17 @@ class CostManagerV2:
             resumo = resumo.sort_values('Total_Periodo', ascending=False)
             return resumo
 
-        elif self.custos_operacionais_estimados is not None and not self.custos_operacionais_estimados.empty:
-            # Usar custos estimados
-            df = self.custos_operacionais_estimados[
-                self.custos_operacionais_estimados['Tipo'] != 'Calculado'
-            ].copy()
-
-            # Calcular valor proporcional ao período
-            dias = (data_fim - data_inicio).days + 1
-            fator = dias / 30.0
-
-            resumo = df.groupby('Categoria').agg({
-                'Valor_Mensal': 'sum'
-            }).round(2)
-            resumo['Total_Periodo'] = (resumo['Valor_Mensal'] * fator).round(2)
+        elif not df_custos.empty:
+            # Usar custos estimados (já calculados com a nova lógica)
+            resumo = df_custos.copy()
+            resumo = resumo.set_index('Categoria_Dashboard')
+            resumo['Total_Periodo'] = resumo['Valor_Total']
             resumo['Percentual'] = (resumo['Total_Periodo'] / resumo['Total_Periodo'].sum() * 100).round(1)
             resumo['Fonte'] = 'Estimado'
             resumo = resumo.sort_values('Total_Periodo', ascending=False)
-            return resumo[['Total_Periodo', 'Percentual', 'Fonte']]
+
+            # Retornar com colunas: Total_Periodo, Percentual, Fonte, Detalhes
+            return resumo[['Total_Periodo', 'Percentual', 'Fonte', 'Detalhes']]
 
         return pd.DataFrame()
 
@@ -480,6 +713,9 @@ class CostManagerV2:
             Dicionário com informações de break-even
         """
         # Determinar custos fixos mensais
+        custos_fixos_mensais = 0
+        fonte_custos = 'ESTIMADO'
+
         if usar_custos_reais and self.despesify_loader:
             if data_inicio is None:
                 # Usar último mês
@@ -490,9 +726,11 @@ class CostManagerV2:
             dias = (data_fim - data_inicio).days + 1
             custos_fixos_mensais = (custos_periodo / dias) * 30
             fonte_custos = fonte
-        else:
+
+        # Fallback para custos estimados se não houver dados reais
+        if custos_fixos_mensais <= 0:
             custos_fixos_mensais = self.get_custos_operacionais_mensais_estimados()
-            fonte_custos = 'ESTIMADO'
+            fonte_custos = 'ESTIMADO (fallback)'
 
         if margem_contribuicao_media <= 0:
             return {

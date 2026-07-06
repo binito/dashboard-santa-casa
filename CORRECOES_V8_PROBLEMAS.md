@@ -282,10 +282,10 @@ ON DUPLICATE KEY UPDATE ...
 Se o script disser que dados já estão no MariaDB:
 ```bash
 # Verificar período atual
-mysql -u root -p'cathie' dashboard -e "SELECT MIN(data), MAX(data) FROM dados_dashboard;"
+mysql -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard -e "SELECT MIN(data), MAX(data) FROM dados_dashboard;"
 
 # Se necessário, apagar e reimportar
-mysql -u root -p'cathie' dashboard -e "TRUNCATE TABLE dados_dashboard;"
+mysql -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard -e "TRUNCATE TABLE dados_dashboard;"
 python3 import_xlsx_historico_to_mariadb.py
 ```
 

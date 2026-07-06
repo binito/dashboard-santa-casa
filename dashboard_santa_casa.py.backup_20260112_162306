@@ -260,7 +260,7 @@ def guardar_objetivos(objetivos_dict):
 
 def formatar_euro(valor):
     """Formata valor em euros."""
-    return f"{valor:,.0f}€".replace(',', '.')
+    return f"€{valor:,.0f}".replace(',', '.')
 
 
 def prever_atingimento_objetivo(df_jogo, objetivo_semanal, semanas_restantes=4):
@@ -672,7 +672,7 @@ def renderizar_indicadores_principais(df):
         st.markdown(f"""
         <div class="kpi-card-yellow">
             <div class="kpi-icon">💎</div>
-            <div class="kpi-label">Prestações</div>
+            <div class="kpi-label">Valor Líquido</div>
             <div class="kpi-value">{formatar_euro(total_liquido)}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -729,12 +729,12 @@ def pagina_visao_geral(df):
             periodo = st.radio("Período", ["Mes", "Semana"], horizontal=True)
 
         fig_tempo = criar_grafico_vendas_tempo(df, periodo)
-        st.plotly_chart(fig_tempo, use_container_width=True, key="visao_geral_evolucao_temporal")
+        st.plotly_chart(fig_tempo, use_container_width=True)
 
     with tab2:
         st.subheader("Vendas por Categoria")
         fig_cat = criar_grafico_categoria(df)
-        st.plotly_chart(fig_cat, use_container_width=True, key="visao_geral_vendas_por_categoria")
+        st.plotly_chart(fig_cat, use_container_width=True)
 
 
 def pagina_por_categoria(df):
@@ -781,7 +781,7 @@ def pagina_por_categoria(df):
             title='Distribuição de Vendas por Categoria',
             height=500
         )
-        st.plotly_chart(fig_pizza, use_container_width=True, key="por_categoria_distribuicao_vendas")
+        st.plotly_chart(fig_pizza, use_container_width=True)
 
     with tab3:
         st.subheader("Evolução por Categoria")
@@ -799,7 +799,13 @@ def pagina_por_categoria(df):
             height=500
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="por_categoria_evolucao_vendas")
+        fig.update_layout(
+            xaxis_title="Mês",
+            yaxis_title="Vendas (€)",
+            hovermode='x unified'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def pagina_por_jogo(df):
@@ -817,7 +823,7 @@ def pagina_por_jogo(df):
             top_n = st.slider("Top N Jogos", 5, 20, 10)
 
         fig_jogo = criar_grafico_jogo(df, top_n)
-        st.plotly_chart(fig_jogo, use_container_width=True, key="por_jogo_top_jogos")
+        st.plotly_chart(fig_jogo, use_container_width=True)
 
     with tab2:
         st.subheader("Resumo Detalhado por Jogo")
@@ -864,14 +870,14 @@ def pagina_raspadinhas(df):
 
             fig_rasp = criar_grafico_raspadinhas(df)
             if fig_rasp:
-                st.plotly_chart(fig_rasp, use_container_width=True, key="raspadinhas_vendas_por_jogo")
+                st.plotly_chart(fig_rasp, use_container_width=True)
 
         with tab2:
             st.subheader("Análise de Maços Comprados")
 
             fig_macos = criar_analise_macos(df)
             if fig_macos:
-                st.plotly_chart(fig_macos, use_container_width=True, key="raspadinhas_analise_macos")
+                st.plotly_chart(fig_macos, use_container_width=True)
             else:
                 st.info("Nenhum maço comprado no período selecionado.")
 
@@ -964,7 +970,7 @@ def pagina_temporal(df):
             height=500
         )
 
-        st.plotly_chart(fig_temporal, use_container_width=True, key="temporal_analise_por_agrupamento")
+        st.plotly_chart(fig_temporal, use_container_width=True)
 
 
 def pagina_premios(df):
@@ -1036,7 +1042,7 @@ def pagina_premios(df):
             height=500
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="premios_top_10_jogos")
+        st.plotly_chart(fig, use_container_width=True)
 
         # Tabela detalhada
         st.dataframe(premios_jogo, use_container_width=True, hide_index=True)
@@ -1061,7 +1067,7 @@ def pagina_premios(df):
             height=400
         )
 
-        st.plotly_chart(fig_cat, use_container_width=True, key="premios_distribuicao_categoria")
+        st.plotly_chart(fig_cat, use_container_width=True)
 
         st.dataframe(premios_cat, use_container_width=True, hide_index=True)
 
@@ -1106,7 +1112,7 @@ def pagina_premios(df):
             height=500
         )
 
-        st.plotly_chart(fig_tempo, use_container_width=True, key="premios_evolucao_temporal")
+        st.plotly_chart(fig_tempo, use_container_width=True)
 
     with tab4:
         st.subheader("🎁 Análise de Rentabilidade de Raspadinhas")
@@ -1250,84 +1256,81 @@ def pagina_premios(df):
             sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs(["📅 Desde Sempre", "📆 Últimos 6 Meses", "📊 Últimos 2 Meses", "📆 Última Semana"])
 
             with sub_tab1:
-                if not top_premios_sempre.empty:
-                    st.markdown("#### 🎁 Análise Desde Sempre")
+                st.markdown("#### 🎁 Análise Desde Sempre")
 
-                    col1, col2 = st.columns(2)
+                col1, col2 = st.columns(2)
 
-                    with col1:
-                        st.markdown("##### 💰 Top 10 com Mais Prémios Pagos")
+                with col1:
+                    st.markdown("##### 💰 Top 10 com Mais Prémios Pagos")
 
-                        # Gráfico Prémios
-                        fig_premios = go.Figure()
-                        fig_premios.add_trace(go.Bar(
-                            x=top_premios_sempre['Jogo Rececionado'],
-                            y=top_premios_sempre['Prémios (€)'],
-                            name='Prémios Totais (€)',
-                            marker_color='#d62728',
-                            text=top_premios_sempre['Prémios (€)'].apply(lambda x: f'{x:.0f}€'),
-                            textposition='outside'
-                        ))
-                        fig_premios.update_layout(
-                            title="Prémios Totais Pagos",
-                            xaxis_title="Jogo Rececionado",
-                            yaxis_title="Prémios (€)",
-                            height=400,
-                            showlegend=False
-                        )
-                        st.plotly_chart(fig_premios, use_container_width=True, key="raspadinhas_premios_desde_sempre")
+                    # Gráfico Prémios
+                    fig_premios = go.Figure()
+                    fig_premios.add_trace(go.Bar(
+                        x=top_premios_sempre['Jogo Rececionado'],
+                        y=top_premios_sempre['Prémios (€)'],
+                        name='Prémios Totais (€)',
+                        marker_color='#d62728',
+                        text=top_premios_sempre['Prémios (€)'].apply(lambda x: f'€{x:.0f}'),
+                        textposition='outside'
+                    ))
+                    fig_premios.update_layout(
+                        title="Prémios Totais Pagos",
+                        xaxis_title="Jogo Rececionado",
+                        yaxis_title="Prémios (€)",
+                        height=400,
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_premios, use_container_width=True)
 
-                        # Tabela Prémios
-                        tabela_premios = top_premios_sempre.copy()
-                        tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"{x:.2f}€")
-                        tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"{x:.2f}€")
-                        tabela_premios['Qt Maços'] = tabela_premios['Qt Maços'].astype(int)
-                        tabela_premios['Vendas ilíquidas (€)'] = tabela_premios['Vendas ilíquidas (€)'].apply(lambda x: f"{x:.2f}€")
+                    # Tabela Prémios
+                    tabela_premios = top_premios_sempre.copy()
+                    tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"€{x:.2f}")
+                    tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"€{x:.2f}")
+                    tabela_premios['Qt Maços'] = tabela_premios['Qt Maços'].astype(int)
+                    tabela_premios['Vendas ilíquidas (€)'] = tabela_premios['Vendas ilíquidas (€)'].apply(lambda x: f"€{x:.2f}")
 
-                        st.dataframe(
-                            tabela_premios[['Jogo Rececionado', 'Qt Maços', 'Prémios (€)', 'Prémios por Maço']],
-                            use_container_width=True,
-                            hide_index=True
-                        )
+                    st.dataframe(
+                        tabela_premios[['Jogo Rececionado', 'Qt Maços', 'Prémios (€)', 'Prémios por Maço']],
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
-                    with col2:
-                        st.markdown("##### 📈 Top 10 Mais Rentáveis")
+                with col2:
+                    st.markdown("##### 📈 Top 10 Mais Rentáveis")
 
-                        # Gráfico Rentabilidade
-                        fig_rent = go.Figure()
-                        fig_rent.add_trace(go.Bar(
-                            x=top_rentabilidade_sempre['Jogo Rececionado'],
-                            y=top_rentabilidade_sempre['Rentabilidade por Maço'],
-                            name='Rentabilidade (€)',
-                            marker_color='#2ca02c',
-                            text=top_rentabilidade_sempre['Rentabilidade por Maço'].apply(lambda x: f'{x:.2f}€'),
-                            textposition='outside'
-                        ))
-                        fig_rent.update_layout(
-                            title="Rentabilidade por Maço",
-                            xaxis_title="Jogo Rececionado",
-                            yaxis_title="Rentabilidade (€/Maço)",
-                            height=400,
-                            showlegend=False
-                        )
-                        st.plotly_chart(fig_rent, use_container_width=True, key="raspadinhas_rentabilidade_desde_sempre")
+                    # Gráfico Rentabilidade
+                    fig_rent = go.Figure()
+                    fig_rent.add_trace(go.Bar(
+                        x=top_rentabilidade_sempre['Jogo Rececionado'],
+                        y=top_rentabilidade_sempre['Rentabilidade por Maço'],
+                        name='Rentabilidade (€)',
+                        marker_color='#2ca02c',
+                        text=top_rentabilidade_sempre['Rentabilidade por Maço'].apply(lambda x: f'€{x:.2f}'),
+                        textposition='outside'
+                    ))
+                    fig_rent.update_layout(
+                        title="Rentabilidade por Maço",
+                        xaxis_title="Jogo Rececionado",
+                        yaxis_title="Rentabilidade (€/Maço)",
+                        height=400,
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_rent, use_container_width=True)
 
-                        # Tabela Rentabilidade
-                        tabela_rent = top_rentabilidade_sempre.copy()
-                        tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"{x:.2f}€")
-                        tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"{x:.2f}€")
-                        tabela_rent['Qt Maços'] = tabela_rent['Qt Maços'].astype(int)
+                    # Tabela Rentabilidade
+                    tabela_rent = top_rentabilidade_sempre.copy()
+                    tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"€{x:.2f}")
+                    tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"€{x:.2f}")
+                    tabela_rent['Qt Maços'] = tabela_rent['Qt Maços'].astype(int)
 
-                        st.dataframe(
-                            tabela_rent[['Jogo Rececionado', 'Qt Maços', 'Valor (€)', 'Rentabilidade por Maço']],
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                else:
-                    st.info("Nenhum dado com quantidade de maços > 0 disponível para a análise Desde Sempre.")
+                    st.dataframe(
+                        tabela_rent[['Jogo Rececionado', 'Qt Maços', 'Valor (€)', 'Rentabilidade por Maço']],
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
             with sub_tab2:
-                if not top_premios_6m.empty:
+                if len(analise_6m) > 0:
                     st.markdown("#### 🎁 Análise Últimos 6 Meses")
 
                     col1, col2 = st.columns(2)
@@ -1342,7 +1345,7 @@ def pagina_premios(df):
                             y=top_premios_6m['Prémios (€)'],
                             name='Prémios Totais (€)',
                             marker_color='#ff7f0e',
-                            text=top_premios_6m['Prémios (€)'].apply(lambda x: f'{x:.0f}€'),
+                            text=top_premios_6m['Prémios (€)'].apply(lambda x: f'€{x:.0f}'),
                             textposition='outside'
                         ))
                         fig_premios.update_layout(
@@ -1352,12 +1355,12 @@ def pagina_premios(df):
                             height=400,
                             showlegend=False
                         )
-                        st.plotly_chart(fig_premios, use_container_width=True, key="raspadinhas_premios_ultimos_6_meses")
+                        st.plotly_chart(fig_premios, use_container_width=True)
 
                         # Tabela Prémios
                         tabela_premios = top_premios_6m.copy()
-                        tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"{x:.2f}€")
-                        tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"{x:.2f}€")
+                        tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"€{x:.2f}")
+                        tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"€{x:.2f}")
                         tabela_premios['Qt Maços'] = tabela_premios['Qt Maços'].astype(int)
 
                         st.dataframe(
@@ -1376,7 +1379,7 @@ def pagina_premios(df):
                             y=top_rentabilidade_6m['Rentabilidade por Maço'],
                             name='Rentabilidade (€)',
                             marker_color='#2ca02c',
-                            text=top_rentabilidade_6m['Rentabilidade por Maço'].apply(lambda x: f'{x:.2f}€'),
+                            text=top_rentabilidade_6m['Rentabilidade por Maço'].apply(lambda x: f'€{x:.2f}'),
                             textposition='outside'
                         ))
                         fig_rent.update_layout(
@@ -1386,12 +1389,12 @@ def pagina_premios(df):
                             height=400,
                             showlegend=False
                         )
-                        st.plotly_chart(fig_rent, use_container_width=True, key="raspadinhas_rentabilidade_ultimos_6_meses")
+                        st.plotly_chart(fig_rent, use_container_width=True)
 
                         # Tabela Rentabilidade
                         tabela_rent = top_rentabilidade_6m.copy()
-                        tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"{x:.2f}€")
-                        tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"{x:.2f}€")
+                        tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"€{x:.2f}")
+                        tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"€{x:.2f}")
                         tabela_rent['Qt Maços'] = tabela_rent['Qt Maços'].astype(int)
 
                         st.dataframe(
@@ -1403,7 +1406,7 @@ def pagina_premios(df):
                     st.info("Nenhum dado disponível para os últimos 6 meses.")
 
             with sub_tab3:
-                if not top_premios_2m.empty:
+                if len(analise_2m) > 0:
                     st.markdown("#### 🎁 Análise Últimos 2 Meses")
 
                     col1, col2 = st.columns(2)
@@ -1418,7 +1421,7 @@ def pagina_premios(df):
                             y=top_premios_2m['Prémios (€)'],
                             name='Prémios Totais (€)',
                             marker_color='#1f77b4',
-                            text=top_premios_2m['Prémios (€)'].apply(lambda x: f'{x:.0f}€'),
+                            text=top_premios_2m['Prémios (€)'].apply(lambda x: f'€{x:.0f}'),
                             textposition='outside'
                         ))
                         fig_premios.update_layout(
@@ -1428,12 +1431,12 @@ def pagina_premios(df):
                             height=400,
                             showlegend=False
                         )
-                        st.plotly_chart(fig_premios, use_container_width=True, key="raspadinhas_premios_ultimos_2_meses")
+                        st.plotly_chart(fig_premios, use_container_width=True)
 
                         # Tabela Prémios
                         tabela_premios = top_premios_2m.copy()
-                        tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"{x:.2f}€")
-                        tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"{x:.2f}€")
+                        tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"€{x:.2f}")
+                        tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"€{x:.2f}")
                         tabela_premios['Qt Maços'] = tabela_premios['Qt Maços'].astype(int)
 
                         st.dataframe(
@@ -1452,7 +1455,7 @@ def pagina_premios(df):
                             y=top_rentabilidade_2m['Rentabilidade por Maço'],
                             name='Rentabilidade (€)',
                             marker_color='#2ca02c',
-                            text=top_rentabilidade_2m['Rentabilidade por Maço'].apply(lambda x: f'{x:.2f}€'),
+                            text=top_rentabilidade_2m['Rentabilidade por Maço'].apply(lambda x: f'€{x:.2f}'),
                             textposition='outside'
                         ))
                         fig_rent.update_layout(
@@ -1462,12 +1465,12 @@ def pagina_premios(df):
                             height=400,
                             showlegend=False
                         )
-                        st.plotly_chart(fig_rent, use_container_width=True, key="raspadinhas_rentabilidade_ultimos_2_meses")
+                        st.plotly_chart(fig_rent, use_container_width=True)
 
                         # Tabela Rentabilidade
                         tabela_rent = top_rentabilidade_2m.copy()
-                        tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"{x:.2f}€")
-                        tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"{x:.2f}€")
+                        tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"€{x:.2f}")
+                        tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"€{x:.2f}")
                         tabela_rent['Qt Maços'] = tabela_rent['Qt Maços'].astype(int)
 
                         st.dataframe(
@@ -1479,7 +1482,7 @@ def pagina_premios(df):
                     st.info("Nenhum dado disponível para os últimos 2 meses.")
 
             with sub_tab4:
-                if not top_premios_1s.empty:
+                if len(analise_1s) > 0:
                     st.markdown("#### 🎁 Análise Última Semana")
 
                     col1, col2 = st.columns(2)
@@ -1494,7 +1497,7 @@ def pagina_premios(df):
                             y=top_premios_1s['Prémios (€)'],
                             name='Prémios Totais (€)',
                             marker_color='#9467bd',
-                            text=top_premios_1s['Prémios (€)'].apply(lambda x: f'{x:.0f}€'),
+                            text=top_premios_1s['Prémios (€)'].apply(lambda x: f'€{x:.0f}'),
                             textposition='outside'
                         ))
                         fig_premios.update_layout(
@@ -1504,12 +1507,12 @@ def pagina_premios(df):
                             height=400,
                             showlegend=False
                         )
-                        st.plotly_chart(fig_premios, use_container_width=True, key="raspadinhas_premios_ultima_semana")
+                        st.plotly_chart(fig_premios, use_container_width=True)
 
                         # Tabela Prémios
                         tabela_premios = top_premios_1s.copy()
-                        tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"{x:.2f}€")
-                        tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"{x:.2f}€")
+                        tabela_premios['Prémios (€)'] = tabela_premios['Prémios (€)'].apply(lambda x: f"€{x:.2f}")
+                        tabela_premios['Prémios por Maço'] = tabela_premios['Prémios por Maço'].apply(lambda x: f"€{x:.2f}")
                         tabela_premios['Qt Maços'] = tabela_premios['Qt Maços'].astype(int)
 
                         st.dataframe(
@@ -1528,7 +1531,7 @@ def pagina_premios(df):
                             y=top_rentabilidade_1s['Rentabilidade por Maço'],
                             name='Rentabilidade (€)',
                             marker_color='#2ca02c',
-                            text=top_rentabilidade_1s['Rentabilidade por Maço'].apply(lambda x: f'{x:.2f}€'),
+                            text=top_rentabilidade_1s['Rentabilidade por Maço'].apply(lambda x: f'€{x:.2f}'),
                             textposition='outside'
                         ))
                         fig_rent.update_layout(
@@ -1538,12 +1541,12 @@ def pagina_premios(df):
                             height=400,
                             showlegend=False
                         )
-                        st.plotly_chart(fig_rent, use_container_width=True, key="raspadinhas_rentabilidade_ultima_semana")
+                        st.plotly_chart(fig_rent, use_container_width=True)
 
                         # Tabela Rentabilidade
                         tabela_rent = top_rentabilidade_1s.copy()
-                        tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"{x:.2f}€")
-                        tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"{x:.2f}€")
+                        tabela_rent['Rentabilidade por Maço'] = tabela_rent['Rentabilidade por Maço'].apply(lambda x: f"€{x:.2f}")
+                        tabela_rent['Valor (€)'] = tabela_rent['Valor (€)'].apply(lambda x: f"€{x:.2f}")
                         tabela_rent['Qt Maços'] = tabela_rent['Qt Maços'].astype(int)
 
                         st.dataframe(
@@ -1586,7 +1589,7 @@ def pagina_prestacao_contas(df, df_prestacao):
     resumo_semanal = resumo_semanal.sort_values('Ano_Semana', ascending=False)
 
     # Formatar para exibição
-    resumo_semanal['Total_Prestado_Fmt'] = resumo_semanal['Total_Prestado'].apply(lambda x: f"{x:,.2f}€")
+    resumo_semanal['Total_Prestado_Fmt'] = resumo_semanal['Total_Prestado'].apply(lambda x: f"€{x:,.2f}")
     resumo_semanal['Data_Inicio_Fmt'] = resumo_semanal['Data_Inicio'].dt.strftime('%d-%m-%Y')
     resumo_semanal['Data_Fim_Fmt'] = resumo_semanal['Data_Fim'].dt.strftime('%d-%m-%Y')
 
@@ -1655,10 +1658,10 @@ def pagina_prestacao_contas(df, df_prestacao):
 
     df_semana_display = df_semana.copy()
     df_semana_display['Data'] = df_semana_display['Data'].dt.strftime('%d-%m-%Y')
-    df_semana_display['Valor (€)'] = df_semana_display['Valor (€)'].apply(lambda x: f"{x:,.2f}€")
+    df_semana_display['Valor (€)'] = df_semana_display['Valor (€)'].apply(lambda x: f"€{x:,.2f}")
 
     st.dataframe(
-        df_semana_display[['Data', 'Categoria', 'Jogo', 'Valor (€)']],
+        df_semana_display[['Data', 'Categoria', 'Valor (€)']],
         use_container_width=True,
         hide_index=True
     )
@@ -1779,7 +1782,7 @@ def pagina_dashboard_executivo(df):
                 colorscale='Blues',
                 showscale=False
             ),
-            text=top_jogos['Vendas ilíquidas (€)'].apply(lambda x: f'{x:,.0f}€'),
+            text=top_jogos['Vendas ilíquidas (€)'].apply(lambda x: f'€{x:,.0f}'),
             textposition='outside'
         ))
 
@@ -1791,7 +1794,7 @@ def pagina_dashboard_executivo(df):
             showlegend=False
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="dashboard_executivo_comparacao_vendas_top_jogos")
+        st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 
@@ -1824,7 +1827,7 @@ def pagina_dashboard_executivo(df):
         hovermode='x unified'
     )
 
-    st.plotly_chart(fig, use_container_width=True, key="dashboard_executivo_evolucao_vendas_mensais")
+    st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 
@@ -1879,19 +1882,19 @@ def pagina_dashboard_executivo(df):
         col1, col2, col3, col4, col5, col6 = st.columns(6)
 
         with col1:
-            st.metric(f"🎮 {jogo}", f"{media_semana:,.0f}€".replace(',', '.'), "Média/Sem")
+            st.metric(f"🎮 {jogo}", f"€{media_semana:,.0f}", "Média/Sem")
 
         with col2:
-            st.metric("🎯 Objetivo", f"{objetivo_semanal:,.0f}€".replace(',', '.'), "Meta/Sem")
+            st.metric("🎯 Objetivo", f"€{objetivo_semanal:,.0f}", "Meta/Sem")
 
         with col3:
             st.metric("📊 % Cumprimento", f"{pct_cumprimento:.1f}%", f"{diferenca:+.0f}€")
 
         with col4:
-            st.metric("📅 Proj. 4 Sem", f"{projecao_4sem:,.0f}€".replace(',', '.'), "")
+            st.metric("📅 Proj. 4 Sem", f"€{projecao_4sem:,.0f}", "")
 
         with col5:
-            st.metric("📈 Proj. Anual", f"{projecao_anual:,.0f}€".replace(',', '.'), "")
+            st.metric("📈 Proj. Anual", f"€{projecao_anual:,.0f}", "")
 
         with col6:
             st.metric("Status", status, "")
@@ -1903,51 +1906,40 @@ def pagina_dashboard_executivo(df):
             if objetivo_semanal == 0:
                 st.info(f"ℹ️ **{jogo}** - Sem objetivo definido para este ano")
             elif pct_cumprimento >= 100:
-                objetivo_fmt = f"{objetivo_semanal:,.0f}€".replace(',', '.')
-                projecao_fmt = f"{projecao_anual:,.0f}€".replace(',', '.')
                 st.success(f"""
                 ✅ **{jogo}** está **acima do objetivo**!
-                - Objetivo semanal: {objetivo_fmt}
-                - Projeção anual: {projecao_fmt}
+                - Objetivo semanal: €{objetivo_semanal:,.0f}
+                - Performance atual: €{media_semana:,.0f} (+{pct_cumprimento-100:.1f}%)
+                - Projeção anual: €{projecao_anual:,.0f}
                 - Tendência: Excelente 🚀
                 """)
             elif pct_cumprimento >= 90:
-                objetivo_fmt = f"{objetivo_semanal:,.0f}€".replace(',', '.')
-                media_fmt = f"{media_semana:,.0f}€".replace(',', '.')
-                diferenca_fmt = f"{diferenca:+.0f}€"
-                projecao_fmt = f"{projecao_anual:,.0f}€".replace(',', '.')
                 st.info(f"""
                 📈 **{jogo}** está **próximo do objetivo**!
-                - Objetivo semanal: {objetivo_fmt}
-                - Performance atual: {media_fmt} ({pct_cumprimento:.1f}%)
-                - Diferença: {diferenca_fmt}
-                - Projeção anual: {projecao_fmt}
+                - Objetivo semanal: €{objetivo_semanal:,.0f}
+                - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                - Diferença: €{diferenca:,.0f}
+                - Projeção anual: €{projecao_anual:,.0f}
                 - Tendência: Bom desempenho 💪
                 """)
             else:
-                objetivo_fmt = f"{objetivo_semanal:,.0f}€".replace(',', '.')
-                media_fmt = f"{media_semana:,.0f}€".replace(',', '.')
-                diferenca_fmt = f"{diferenca:+.0f}€"
-                projecao_fmt = f"{projecao_anual:,.0f}€".replace(',', '.')
                 st.warning(f"""
                 ⚠️ **{jogo}** está **abaixo do objetivo**.
-                - Objetivo semanal: {objetivo_fmt}
-                - Performance atual: {media_fmt} ({pct_cumprimento:.1f}%)
-                - Diferença: {diferenca_fmt}
-                - Projeção anual: {projecao_fmt}
+                - Objetivo semanal: €{objetivo_semanal:,.0f}
+                - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                - Diferença: €{diferenca:,.0f}
+                - Projeção anual: €{projecao_anual:,.0f}
                 - Tendência: Necessário esforço adicional 💡
                 """)
 
         # Pequeno gráfico ao lado
         with col_graf:
             if objetivo_semanal > 0:
-                media_fmt = f'{media_semana:,.0f}€'.replace(',', '.')
-                objetivo_fmt = f'{objetivo_semanal:,.0f}€'.replace(',', '.')
                 fig_mini = go.Figure(data=[
                     go.Bar(
                         x=['Atual', 'Objetivo'],
                         y=[media_semana, objetivo_semanal],
-                        text=[media_fmt, objetivo_fmt],
+                        text=[f'€{media_semana:,.0f}', f'€{objetivo_semanal:,.0f}'],
                         textposition='outside',
                         marker=dict(
                             color=['#1f77b4' if media_semana >= objetivo_semanal else '#ff7f0e', '#2ca02c'],
@@ -1963,7 +1955,7 @@ def pagina_dashboard_executivo(df):
                     xaxis_tickfont=dict(size=10),
                     font=dict(size=9)
                 )
-                st.plotly_chart(fig_mini, use_container_width=True, key=f"previsao_objetivo_mini_chart_{jogo}")
+                st.plotly_chart(fig_mini, use_container_width=True)
 
         st.divider()
 
@@ -1980,7 +1972,7 @@ def pagina_dashboard_executivo(df):
             if st.button(f"💾 Guardar Objetivo - {jogo}", key=f"btn_guardar_{jogo}"):
                 objetivos_guardados[jogo] = novo_objetivo
                 if guardar_objetivos(objetivos_guardados):
-                    st.success(f"✅ Objetivo de {novo_objetivo:.0f}€ guardado para {jogo}!")
+                    st.success(f"✅ Objetivo de €{novo_objetivo:.0f} guardado para {jogo}!")
                     st.rerun()
                 else:
                     st.error("Erro ao guardar objetivo")
@@ -2077,7 +2069,7 @@ def pagina_analise_semanal(df):
                 showlegend=False
             )
 
-            st.plotly_chart(fig, use_container_width=True, key="analise_semanal_comparacao_vendas_wow")
+            st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
         st.markdown("### 🔥 Heatmap de Performance Semanal")
@@ -2102,7 +2094,7 @@ def pagina_analise_semanal(df):
             y=jogos_unicos,
             colorscale='RdYlGn',
             text=np.array(heatmap_data).astype(int),
-            texttemplate='%{text}€',
+            texttemplate='€%{text}',
             textfont={"size": 10},
             colorbar=dict(title="Vendas (€)")
         ))
@@ -2114,7 +2106,7 @@ def pagina_analise_semanal(df):
             height=500
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="analise_semanal_heatmap_performance")
+        st.plotly_chart(fig, use_container_width=True)
 
         # Insights automáticos
         st.markdown("#### 💡 Insights Automáticos")
@@ -2154,7 +2146,7 @@ def pagina_analise_semanal(df):
             hovermode='x unified'
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="analise_semanal_tendencias_categoria")
+        st.plotly_chart(fig, use_container_width=True)
 
         # Estatísticas por categoria
         st.markdown("#### 📊 Estatísticas por Categoria")
@@ -2163,7 +2155,7 @@ def pagina_analise_semanal(df):
         stats_categoria.columns = ['Categoria', 'Total', 'Média', 'Desvio Padrão']
         stats_categoria['Total'] = stats_categoria['Total'].apply(lambda x: formatar_euro(x))
         stats_categoria['Média'] = stats_categoria['Média'].apply(lambda x: formatar_euro(x))
-        stats_categoria['Desvio Padrão'] = stats_categoria['Desvio Padrão'].apply(lambda x: f'{x:.0f}€')
+        stats_categoria['Desvio Padrão'] = stats_categoria['Desvio Padrão'].apply(lambda x: f'€{x:.0f}')
 
         st.dataframe(stats_categoria, use_container_width=True, hide_index=True)
 

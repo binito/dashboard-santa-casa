@@ -210,7 +210,7 @@ def carregar_dados():
 
 def formatar_moeda(valor):
     """Formata valor em euros sem casas decimais"""
-    return f"{valor:,.0f}€".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"€ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def formatar_percentagem(valor):
@@ -416,7 +416,7 @@ def criar_grafico_barras(df, x, y, titulo, orientacao='v', cor=None):
         yaxis_title=y
     )
 
-    fig.update_traces(texttemplate='%{text:.2f}€', textposition='outside')
+    fig.update_traces(texttemplate='€%{text:.2f}', textposition='outside')
 
     return fig
 
@@ -450,7 +450,7 @@ def criar_heatmap(df, titulo):
         y=df.index,
         colorscale='Blues',
         text=df.values,
-        texttemplate='%{text:.0f}€',
+        texttemplate='€%{text:.0f}',
         textfont={"size": 10},
         colorbar=dict(title="Vendas (€)")
     ))
@@ -472,7 +472,7 @@ def criar_grafico_waterfall(valores, labels, titulo):
         measure=["relative"] * (len(valores) - 1) + ["total"],
         x=labels,
         textposition="outside",
-        text=[f"{v:,.0f}€" for v in valores],
+        text=[f"€{v:,.0f}" for v in valores],
         y=valores,
         connector={"line": {"color": "rgb(63, 63, 63)"}},
     ))
@@ -819,9 +819,6 @@ def carregar_dados_santa_casa():
     df['Ano'] = df['Data'].dt.year
     df['Mes'] = df['Data'].dt.month
     df['Ano_Mes'] = df['Data'].dt.to_period('M').astype(str)
-    df['Semana'] = df['Data'].dt.isocalendar().week
-    df['Trimestre'] = df['Data'].dt.quarter
-    df['Dia_Semana'] = df['Data'].dt.dayofweek
 
     # Ordenar por data
     df = df.sort_values('Data')
@@ -895,11 +892,11 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
     num_jogos = df_filtrado['Jogo'].nunique()
 
     with col1:
-        st.metric("Total Vendas Ilíquidas", f"{total_vendas:,.0f}€")
+        st.metric("Total Vendas Ilíquidas", f"€{total_vendas:,.0f}")
     with col2:
-        st.metric("Total Remunerações", f"{total_remuneracoes:,.0f}€")
+        st.metric("Total Remunerações", f"€{total_remuneracoes:,.0f}")
     with col3:
-        st.metric("Total Prémios", f"{total_premios:,.0f}€")
+        st.metric("Total Prémios", f"€{total_premios:,.0f}")
     with col4:
         st.metric("Nº de Jogos", num_jogos)
 
@@ -952,10 +949,10 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Estatísticas
         st.markdown("#### 📊 Estatísticas Semanais")
         stats = {
-            'Semana com Maior Vendas': f"{vendas_semanal['Vendas ilíquidas (€)'].max():,.0f}€",
-            'Semana com Menor Vendas': f"{vendas_semanal['Vendas ilíquidas (€)'].min():,.0f}€",
-            'Média Semanal': f"{vendas_semanal['Vendas ilíquidas (€)'].mean():,.0f}€",
-            'Desvio Padrão': f"{vendas_semanal['Vendas ilíquidas (€)'].std():,.0f}€"
+            'Semana com Maior Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].max():,.0f}",
+            'Semana com Menor Vendas': f"€{vendas_semanal['Vendas ilíquidas (€)'].min():,.0f}",
+            'Média Semanal': f"€{vendas_semanal['Vendas ilíquidas (€)'].mean():,.0f}",
+            'Desvio Padrão': f"€{vendas_semanal['Vendas ilíquidas (€)'].std():,.0f}"
         }
 
         col1, col2, col3, col4 = st.columns(4)
@@ -993,7 +990,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         )
 
         fig.update_traces(
-            text=top_jogos['Total Vendas'].apply(lambda x: f'{x:,.0f}€'),
+            text=top_jogos['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
             textposition='outside'
         )
 
@@ -1002,8 +999,8 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Tabela detalhada
         st.markdown("#### 📋 Resumo Completo por Jogo")
         vendas_jogo_display = vendas_jogo.copy()
-        vendas_jogo_display['Total Vendas'] = vendas_jogo_display['Total Vendas'].apply(lambda x: f'{x:,.0f}€')
-        vendas_jogo_display['Média Semanal'] = vendas_jogo_display['Média Semanal'].apply(lambda x: f'{x:,.0f}€')
+        vendas_jogo_display['Total Vendas'] = vendas_jogo_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
+        vendas_jogo_display['Média Semanal'] = vendas_jogo_display['Média Semanal'].apply(lambda x: f'€{x:,.0f}')
         st.dataframe(vendas_jogo_display, use_container_width=True, hide_index=True)
 
     with tab3:
@@ -1040,7 +1037,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         )
 
         fig_barras.update_traces(
-            text=vendas_cat['Total Vendas'].apply(lambda x: f'{x:,.0f}€'),
+            text=vendas_cat['Total Vendas'].apply(lambda x: f'€{x:,.0f}'),
             textposition='outside'
         )
 
@@ -1049,7 +1046,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Tabela
         st.markdown("#### 📊 Detalhes por Categoria")
         vendas_cat_display = vendas_cat.copy()
-        vendas_cat_display['Total Vendas'] = vendas_cat_display['Total Vendas'].apply(lambda x: f'{x:,.0f}€')
+        vendas_cat_display['Total Vendas'] = vendas_cat_display['Total Vendas'].apply(lambda x: f'€{x:,.0f}')
         st.dataframe(vendas_cat_display, use_container_width=True, hide_index=True)
 
     with tab4:
@@ -1083,7 +1080,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Tabela de comparação
         st.markdown("#### 📊 Tabela Comparativa Semanal")
         pivot_vendas = vendas_semana_jogo.pivot(index='Data', columns='Jogo', values='Vendas ilíquidas (€)').fillna(0)
-        pivot_vendas = pivot_vendas.applymap(lambda x: f'{x:,.0f}€' if x > 0 else '-')
+        pivot_vendas = pivot_vendas.applymap(lambda x: f'€{x:,.0f}' if x > 0 else '-')
         st.dataframe(pivot_vendas, use_container_width=True)
 
     with tab5:
@@ -1146,7 +1143,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         st.markdown("#### 📊 Tabela Resumida - Crescimento Mês a Mês")
         tabela_mom = vendas_mes_filtrado[['Jogo', 'Ano_Mes', 'Vendas ilíquidas (€)', 'Crescimento_MoM']].copy()
         tabela_mom = tabela_mom.sort_values(['Jogo', 'Ano_Mes'])
-        tabela_mom['Vendas ilíquidas (€)'] = tabela_mom['Vendas ilíquidas (€)'].apply(lambda x: f'{x:,.0f}€')
+        tabela_mom['Vendas ilíquidas (€)'] = tabela_mom['Vendas ilíquidas (€)'].apply(lambda x: f'€{x:,.0f}')
         tabela_mom['Crescimento_MoM'] = tabela_mom['Crescimento_MoM'].apply(lambda x: f'{x:+.1f}%')
         tabela_mom.columns = ['Jogo', 'Mês', 'Vendas', 'Crescimento %']
         st.dataframe(tabela_mom, use_container_width=True, hide_index=True)
@@ -1206,7 +1203,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         # Formatar valores
         for col in tabela_yoy.columns:
             if col != 'Variação %':
-                tabela_yoy[col] = tabela_yoy[col].apply(lambda x: f'{x:,.0f}€')
+                tabela_yoy[col] = tabela_yoy[col].apply(lambda x: f'€{x:,.0f}')
         tabela_yoy['Variação %'] = tabela_yoy.get('Variação %', pd.Series()).apply(lambda x: f'{x:+.1f}%' if isinstance(x, (int, float)) else x)
 
         st.dataframe(tabela_yoy, use_container_width=True)
@@ -1272,11 +1269,11 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
             ('Desvio Padrão', 'std')
         ]).reset_index().sort_values('Total', ascending=False)
 
-        stats_jogo['Total'] = stats_jogo['Total'].apply(lambda x: f'{x:,.0f}€')
-        stats_jogo['Média'] = stats_jogo['Média'].apply(lambda x: f'{x:,.0f}€')
-        stats_jogo['Máximo'] = stats_jogo['Máximo'].apply(lambda x: f'{x:,.0f}€')
-        stats_jogo['Mínimo'] = stats_jogo['Mínimo'].apply(lambda x: f'{x:,.0f}€')
-        stats_jogo['Desvio Padrão'] = stats_jogo['Desvio Padrão'].apply(lambda x: f'{x:,.0f}€')
+        stats_jogo['Total'] = stats_jogo['Total'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Média'] = stats_jogo['Média'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Máximo'] = stats_jogo['Máximo'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Mínimo'] = stats_jogo['Mínimo'].apply(lambda x: f'€{x:,.0f}')
+        stats_jogo['Desvio Padrão'] = stats_jogo['Desvio Padrão'].apply(lambda x: f'€{x:,.0f}')
         stats_jogo.columns = ['Jogo', 'Nº Semanas', 'Total', 'Média', 'Máximo', 'Mínimo', 'Desvio']
 
         st.dataframe(stats_jogo, use_container_width=True, hide_index=True)
@@ -1332,19 +1329,19 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
             col1, col2, col3, col4, col5, col6 = st.columns(6)
 
             with col1:
-                st.metric(f"🎮 {jogo}", f"{media_semana:,.0f}€", "Média/Sem")
+                st.metric(f"🎮 {jogo}", f"€{media_semana:,.0f}", "Média/Sem")
 
             with col2:
-                st.metric("🎯 Objetivo", f"{objetivo_semanal:,.0f}€", "Meta/Sem")
+                st.metric("🎯 Objetivo", f"€{objetivo_semanal:,.0f}", "Meta/Sem")
 
             with col3:
                 st.metric("📊 % Cumprimento", f"{pct_cumprimento:.1f}%", f"{diferenca:+.0f}€")
 
             with col4:
-                st.metric("📅 Proj. 4 Sem", f"{projecao_4sem:,.0f}€", "")
+                st.metric("📅 Proj. 4 Sem", f"€{projecao_4sem:,.0f}", "")
 
             with col5:
-                st.metric("📈 Proj. Anual", f"{projecao_anual:,.0f}€", "")
+                st.metric("📈 Proj. Anual", f"€{projecao_anual:,.0f}", "")
 
             with col6:
                 st.metric("Status", status, "")
@@ -1358,27 +1355,27 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
                 elif pct_cumprimento >= 100:
                     st.success(f"""
                     ✅ **{jogo}** está **acima do objetivo**!
-                    - Objetivo semanal: {objetivo_semanal:,.0f}€
-                    - Performance atual: {media_semana:,.0f}€ (+{pct_cumprimento-100:.1f}%)
-                    - Projeção anual: {projecao_anual:,.0f}€
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} (+{pct_cumprimento-100:.1f}%)
+                    - Projeção anual: €{projecao_anual:,.0f}
                     - Tendência: Excelente 🚀
                     """)
                 elif pct_cumprimento >= 90:
                     st.info(f"""
                     📈 **{jogo}** está **próximo do objetivo**!
-                    - Objetivo semanal: {objetivo_semanal:,.0f}€
-                    - Performance atual: {media_semana:,.0f}€ ({pct_cumprimento:.1f}%)
-                    - Diferença: {diferenca:,.0f}€
-                    - Projeção anual: {projecao_anual:,.0f}€
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                    - Diferença: €{diferenca:,.0f}
+                    - Projeção anual: €{projecao_anual:,.0f}
                     - Tendência: Bom desempenho 💪
                     """)
                 else:
                     st.warning(f"""
                     ⚠️ **{jogo}** está **abaixo do objetivo**.
-                    - Objetivo semanal: {objetivo_semanal:,.0f}€
-                    - Performance atual: {media_semana:,.0f}€ ({pct_cumprimento:.1f}%)
-                    - Diferença: {diferenca:,.0f}€
-                    - Projeção anual: {projecao_anual:,.0f}€
+                    - Objetivo semanal: €{objetivo_semanal:,.0f}
+                    - Performance atual: €{media_semana:,.0f} ({pct_cumprimento:.1f}%)
+                    - Diferença: €{diferenca:,.0f}
+                    - Projeção anual: €{projecao_anual:,.0f}
                     - Tendência: Necessário esforço adicional 💡
                     """)
 
@@ -1389,7 +1386,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
                         go.Bar(
                             x=['Atual', 'Objetivo'],
                             y=[media_semana, objetivo_semanal],
-                            text=[f'{media_semana:,.0f}€', f'{objetivo_semanal:,.0f}€'],
+                            text=[f'€{media_semana:,.0f}', f'€{objetivo_semanal:,.0f}'],
                             textposition='outside',
                             marker=dict(
                                 color=['#1f77b4' if media_semana >= objetivo_semanal else '#ff7f0e', '#2ca02c'],
@@ -1737,38 +1734,7 @@ def main():
         st.warning("Nenhum dado disponível.")
         return
 
-    # Sidebar - Navegação
-    st.sidebar.header("📑 Navegação")
-
-    # Inicializar session_state para tab ativa
-    if 'active_tab' not in st.session_state:
-        st.session_state.active_tab = "📊 Visão Geral"
-
-    # Lista de tabs disponíveis
-    tabs_list = [
-        "📊 Visão Geral",
-        "☕ Análise por Categoria",
-        "🎯 Performance & KPIs",
-        "💰 Análise Financeira",
-        "📊 Comparação & Benchmarks",
-        "📑 Dados Detalhados",
-        "💸 Análise de Custos",
-        "📊 Rentabilidade & Margens",
-        "🎯 Break-Even Analysis",
-        "🎰 Jogos Santa Casa",
-        "📦 Forecast & Encomendas"
-    ]
-
-    # Selectbox para navegação entre tabs
-    st.session_state.active_tab = st.sidebar.selectbox(
-        "Selecione a página:",
-        options=tabs_list,
-        index=tabs_list.index(st.session_state.active_tab) if st.session_state.active_tab in tabs_list else 0,
-        key="tab_selector"
-    )
-
     # Sidebar - Filtros
-    st.sidebar.markdown("---")
     st.sidebar.header("🔍 Filtros Avançados")
 
     # Filtro de data
@@ -1804,9 +1770,7 @@ def main():
     # Aplicar filtro de ano rápido se selecionado
     if st.session_state.selected_year:
         ano = st.session_state.selected_year
-        # Limitar data_fim ao máximo de dados disponíveis nesse ano
-        data_max_ano = df[df['Data'].dt.year == ano]['Data'].max().date()
-        date_range = (pd.Timestamp(f"{ano}-01-01").date(), data_max_ano)
+        date_range = (pd.Timestamp(f"{ano}-01-01").date(), pd.Timestamp(f"{ano}-12-31").date())
     else:
         date_range = st.sidebar.date_input(
             "Período",
@@ -1894,10 +1858,10 @@ def main():
     media_diaria = df_filtrado.groupby('Data')['Valor'].sum().mean()
     ticket_medio = total_vendas / total_quantidade if total_quantidade > 0 else 0
 
-    # Calcular período anterior para comparação (mesmo período do ano anterior)
+    # Calcular período anterior para comparação
     dias_periodo = (data_fim - data_inicio).days + 1
-    data_inicio_anterior = data_inicio - timedelta(days=365)
-    data_fim_anterior = data_fim - timedelta(days=365)
+    data_inicio_anterior = data_inicio - timedelta(days=dias_periodo)
+    data_fim_anterior = data_inicio - timedelta(days=1)
 
     df_anterior = filtrar_dados(
         df,
@@ -1969,12 +1933,24 @@ def main():
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-    # ============================================================
-    # SISTEMA DE NAVEGAÇÃO POR TABS (mantém tab ativa após rerun)
-    # ============================================================
+    # Tabs principais
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
+        "📊 Visão Geral",
+        "☕ Análise por Categoria",
+        "📈 Análise Temporal",
+        "🎯 Performance & KPIs",
+        "💰 Análise Financeira",
+        "📊 Comparação & Benchmarks",
+        "📑 Dados Detalhados",
+        "💸 Análise de Custos",
+        "📊 Rentabilidade & Margens",
+        "🎯 Break-Even Analysis",
+        "🎰 Jogos Santa Casa",
+        "📦 Forecast & Encomendas"
+    ])
 
     # TAB 1 - Visão Geral
-    if st.session_state.active_tab == "📊 Visão Geral":
+    with tab1:
         st.header("📊 Visão Geral das Vendas")
 
         # ========== MÉTRICAS DE PERFORMANCE ==========
@@ -2183,7 +2159,7 @@ def main():
         st.plotly_chart(fig_evolucao, use_container_width=True)
 
     # TAB 2 - Análise por Categoria
-    elif st.session_state.active_tab == "☕ Análise por Categoria":
+    with tab2:
         st.header("☕ Análise Detalhada por Categoria")
 
         # Seletor de categoria
@@ -2285,17 +2261,152 @@ def main():
 
         st.plotly_chart(fig_evolucao_cat, use_container_width=True)
 
-    # TAB 3 - Performance & KPIs
-    elif st.session_state.active_tab == "🎯 Performance & KPIs":
+    # TAB 3 - Análise Temporal
+    with tab3:
+        st.header("📈 Análise Temporal Avançada")
+
+        # Seletor de granularidade
+        granularidade = st.radio(
+            "Selecione a granularidade:",
+            options=['Diária', 'Semanal', 'Mensal'],
+            horizontal=True
+        )
+
+        st.markdown("---")
+
+        # Vendas por dia da semana
+        st.subheader("📅 Vendas por Dia da Semana")
+
+        dias_semana = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+        df_filtrado['Dia_Semana_Nome'] = df_filtrado['Dia_Semana'].apply(lambda x: dias_semana[x])
+
+        vendas_por_dia_semana = df_filtrado.groupby('Dia_Semana_Nome')['Valor'].sum()
+        vendas_por_dia_semana = vendas_por_dia_semana.reindex(dias_semana)
+
+        fig_dia_semana = px.bar(
+            x=vendas_por_dia_semana.index,
+            y=vendas_por_dia_semana.values,
+            title='Vendas por Dia da Semana',
+            labels={'x': 'Dia da Semana', 'y': 'Vendas (€)'},
+            text=[formatar_moeda(v) for v in vendas_por_dia_semana.values],
+            color=vendas_por_dia_semana.values,
+            color_continuous_scale='Blues'
+        )
+
+        fig_dia_semana.update_layout(
+            height=400,
+            showlegend=False
+        )
+
+        st.plotly_chart(fig_dia_semana, use_container_width=True)
+
+        # Heatmap: Dia da semana vs Categoria
+        st.subheader("🔥 Heatmap: Vendas por Dia da Semana e Categoria")
+
+        heatmap_data = df_filtrado.pivot_table(
+            values='Valor',
+            index='Dia_Semana_Nome',
+            columns='Categoria',
+            aggfunc='sum',
+            fill_value=0
+        )
+
+        heatmap_data = heatmap_data.reindex(dias_semana)
+
+        fig_heatmap = criar_heatmap(heatmap_data, 'Distribuição de Vendas')
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+
+        # Análise por hora (se disponível)
+        if 'Data' in df_filtrado.columns:
+            st.subheader("🕐 Análise por Hora do Dia")
+
+            # Tentar extrair hora
+            df_filtrado['Hora'] = df_filtrado['Data'].dt.hour
+
+            if df_filtrado['Hora'].notna().any():
+                vendas_por_hora = df_filtrado.groupby('Hora')['Valor'].sum()
+
+                fig_hora = px.line(
+                    x=vendas_por_hora.index,
+                    y=vendas_por_hora.values,
+                    title='Vendas por Hora do Dia',
+                    labels={'x': 'Hora', 'y': 'Vendas (€)'},
+                    markers=True
+                )
+
+                fig_hora.update_layout(height=400)
+                st.plotly_chart(fig_hora, use_container_width=True)
+            else:
+                st.info("Informação de hora não disponível nos dados.")
+
+        # Vendas por mês
+        st.subheader("📆 Vendas por Mês")
+
+        if 'Mes' in df_filtrado.columns and 'Ano' in df_filtrado.columns:
+            df_filtrado['Mes_Ano'] = df_filtrado['Data'].dt.to_period('M').astype(str)
+            vendas_por_mes = df_filtrado.groupby('Mes_Ano')['Valor'].sum().reset_index()
+
+            fig_mes = px.bar(
+                vendas_por_mes,
+                x='Mes_Ano',
+                y='Valor',
+                title='Vendas Mensais',
+                text=[formatar_moeda(v) for v in vendas_por_mes['Valor']],
+                color='Valor',
+                color_continuous_scale='Viridis'
+            )
+
+            fig_mes.update_layout(
+                height=400,
+                xaxis_title="Mês/Ano",
+                yaxis_title="Vendas (€)",
+                showlegend=False
+            )
+
+            st.plotly_chart(fig_mes, use_container_width=True)
+
+        # Sazonalidade
+        st.subheader("🌊 Análise de Sazonalidade")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Vendas por trimestre
+            if 'Trimestre' in df_filtrado.columns:
+                vendas_trimestre = df_filtrado.groupby('Trimestre')['Valor'].sum()
+
+                fig_trimestre = px.pie(
+                    values=vendas_trimestre.values,
+                    names=[f'Q{i}' for i in vendas_trimestre.index],
+                    title='Distribuição por Trimestre',
+                    hole=0.4
+                )
+
+                fig_trimestre.update_layout(height=400)
+                st.plotly_chart(fig_trimestre, use_container_width=True)
+
+        with col2:
+            # Vendas por semana
+            if 'Semana' in df_filtrado.columns:
+                vendas_semana = df_filtrado.groupby('Semana')['Valor'].sum().head(20)
+
+                fig_semana = px.line(
+                    x=vendas_semana.index,
+                    y=vendas_semana.values,
+                    title='Vendas por Semana (Top 20)',
+                    labels={'x': 'Semana do Ano', 'y': 'Vendas (€)'},
+                    markers=True
+                )
+
+                fig_semana.update_layout(height=400)
+                st.plotly_chart(fig_semana, use_container_width=True)
+
+    # TAB 4 - Performance & KPIs
+    with tab4:
         st.header("🎯 Performance & KPIs Avançados")
 
         # Taxa de crescimento por categoria
-        st.subheader("📊 Taxa de Crescimento vs Período homólogo")
-
-        # Mostrar períodos de comparação
-        st.caption(f"📅 **Período Atual:** {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")
-        if not df_anterior.empty:
-            st.caption(f"📅 **Período Comparação:** {data_inicio_anterior.strftime('%d/%m/%Y')} a {data_fim_anterior.strftime('%d/%m/%Y')} (mesmo período ano anterior)")
+        st.subheader("📊 Taxa de Crescimento por Categoria")
 
         if not df_anterior.empty:
             crescimento_cat = pd.DataFrame({
@@ -2313,7 +2424,7 @@ def main():
             fig_crescimento = px.bar(
                 x=crescimento_cat.index,
                 y=crescimento_cat['Crescimento (%)'],
-                #title='Taxa de Crescimento por Categoria (vs Período homólogo)',
+                title='Taxa de Crescimento por Categoria (vs Período Anterior)',
                 labels={'x': 'Categoria', 'y': 'Crescimento (%)'},
                 color=crescimento_cat['Crescimento (%)'],
                 color_continuous_scale='RdYlGn',
@@ -2323,61 +2434,9 @@ def main():
             fig_crescimento.update_layout(height=400, showlegend=False)
             fig_crescimento.add_hline(y=0, line_dash="dash", line_color="black")
 
-            st.plotly_chart(fig_crescimento, use_container_width=True, key="chart_crescimento_homologo")
+            st.plotly_chart(fig_crescimento, use_container_width=True)
         else:
             st.info("Dados do período anterior não disponíveis para comparação.")
-
-        # Taxa de crescimento vs período consecutivo anterior
-        st.subheader("📊 Taxa de Crescimento vs Período Consecutivo")
-
-        # Calcular período consecutivo anterior (imediatamente antes do período atual)
-        dias_periodo_atual = (data_fim - data_inicio).days + 1
-        data_inicio_consecutivo = data_inicio - timedelta(days=dias_periodo_atual)
-        data_fim_consecutivo = data_inicio - timedelta(days=1)
-
-        st.caption(f"📅 **Período Atual:** {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")
-        st.caption(f"📅 **Período Consecutivo:** {data_inicio_consecutivo.strftime('%d/%m/%Y')} a {data_fim_consecutivo.strftime('%d/%m/%Y')} ({dias_periodo_atual} dias anteriores)")
-
-        # Filtrar dados do período consecutivo
-        df_consecutivo = filtrar_dados(
-            df,
-            categorias_selecionadas,
-            subcategorias_selecionadas,
-            fontes_selecionadas,
-            data_inicio_consecutivo,
-            data_fim_consecutivo,
-            apenas_dias_uteis
-        )
-
-        if not df_consecutivo.empty:
-            crescimento_consecutivo = pd.DataFrame({
-                'Atual': df_filtrado.groupby('Categoria')['Valor'].sum(),
-                'Consecutivo': df_consecutivo.groupby('Categoria')['Valor'].sum()
-            }).fillna(0)
-
-            crescimento_consecutivo['Crescimento (%)'] = crescimento_consecutivo.apply(
-                lambda row: calcular_delta(row['Atual'], row['Consecutivo']),
-                axis=1
-            )
-
-            crescimento_consecutivo = crescimento_consecutivo.sort_values('Crescimento (%)', ascending=False)
-
-            fig_consecutivo = px.bar(
-                x=crescimento_consecutivo.index,
-                y=crescimento_consecutivo['Crescimento (%)'],
-                #title='Taxa de Crescimento por Categoria (vs Período Consecutivo)',
-                labels={'x': 'Categoria', 'y': 'Crescimento (%)'},
-                color=crescimento_consecutivo['Crescimento (%)'],
-                color_continuous_scale='RdYlGn',
-                text=[f"{v:+.1f}%" for v in crescimento_consecutivo['Crescimento (%)']]
-            )
-
-            fig_consecutivo.update_layout(height=400, showlegend=False)
-            fig_consecutivo.add_hline(y=0, line_dash="dash", line_color="black")
-
-            st.plotly_chart(fig_consecutivo, use_container_width=True, key="chart_crescimento_consecutivo")
-        else:
-            st.info("Dados do período consecutivo não disponíveis para comparação.")
 
         st.markdown("---")
 
@@ -2567,123 +2626,8 @@ def main():
         - HHI ≥ 2500: Alta concentração
         """)
 
-        st.markdown("---")
-
-        # Análise Temporal integrada
-        st.subheader("📈 Análise Temporal")
-
-        # Vendas por dia da semana
-        st.markdown("**📅 Vendas por Dia da Semana**")
-
-        dias_semana = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
-        df_filtrado['Dia_Semana_Nome'] = df_filtrado['Dia_Semana'].apply(lambda x: dias_semana[x])
-
-        vendas_por_dia_semana = df_filtrado.groupby('Dia_Semana_Nome')['Valor'].sum()
-        vendas_por_dia_semana = vendas_por_dia_semana.reindex(dias_semana)
-
-        fig_dia_semana = px.bar(
-            x=vendas_por_dia_semana.index,
-            y=vendas_por_dia_semana.values,
-            title='Vendas por Dia da Semana',
-            labels={'x': 'Dia da Semana', 'y': 'Vendas (€)'},
-            text=[formatar_moeda(v) for v in vendas_por_dia_semana.values],
-            color=vendas_por_dia_semana.values,
-            color_continuous_scale='Blues'
-        )
-
-        fig_dia_semana.update_layout(
-            height=400,
-            showlegend=False
-        )
-
-        st.plotly_chart(fig_dia_semana, use_container_width=True, key="chart_dia_semana")
-
-        # Vendas por mês
-        st.markdown("**📆 Vendas por Mês**")
-
-        if 'Mes' in df_filtrado.columns and 'Ano' in df_filtrado.columns:
-            df_filtrado['Mes_Ano'] = df_filtrado['Data'].dt.to_period('M').astype(str)
-            vendas_por_mes = df_filtrado.groupby('Mes_Ano')['Valor'].sum().reset_index()
-
-            fig_mes = px.bar(
-                vendas_por_mes,
-                x='Mes_Ano',
-                y='Valor',
-                title='Vendas Mensais',
-                text=[formatar_moeda(v) for v in vendas_por_mes['Valor']],
-                color='Valor',
-                color_continuous_scale='Viridis'
-            )
-
-            fig_mes.update_layout(
-                height=400,
-                xaxis_title="Mês/Ano",
-                yaxis_title="Vendas (€)",
-                showlegend=False
-            )
-
-            st.plotly_chart(fig_mes, use_container_width=True, key="chart_vendas_mes")
-
-        # Sazonalidade
-        st.markdown("**🌊 Análise de Sazonalidade**")
-
-        # Vendas por trimestre
-        if 'Trimestre' in df_filtrado.columns:
-            vendas_trimestre = df_filtrado.groupby('Trimestre')['Valor'].sum()
-
-            fig_trimestre = px.pie(
-                values=vendas_trimestre.values,
-                names=[f'Q{i}' for i in vendas_trimestre.index],
-                title='Distribuição por Trimestre',
-                hole=0.4
-            )
-
-            fig_trimestre.update_layout(height=400)
-            st.plotly_chart(fig_trimestre, use_container_width=True, key="chart_trimestre")
-
-        # Análise Semanal
-        if 'Semana' in df_filtrado.columns:
-            st.markdown("**📅 Análise Semanal**")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Todas as semanas (evolução temporal)
-                vendas_semana_todas = df_filtrado.groupby('Semana')['Valor'].sum().sort_index()
-
-                fig_semana_todas = px.line(
-                    x=vendas_semana_todas.index,
-                    y=vendas_semana_todas.values,
-                    title='Evolução Semanal - Todas as Semanas',
-                    labels={'x': 'Semana do Ano', 'y': 'Vendas (€)'},
-                    markers=True
-                )
-
-                fig_semana_todas.update_layout(height=400)
-                st.plotly_chart(fig_semana_todas, use_container_width=True, key="chart_semana_todas")
-                st.caption(f"📊 Total de {len(vendas_semana_todas)} semanas no período")
-
-            with col2:
-                # Top 20 semanas com mais vendas
-                vendas_semana_top = df_filtrado.groupby('Semana')['Valor'].sum().sort_values(ascending=False).head(20)
-
-                fig_semana_top = px.bar(
-                    x=[f"S{s}" for s in vendas_semana_top.index],
-                    y=vendas_semana_top.values,
-                    title='Top 20 Semanas com Mais Vendas',
-                    labels={'x': 'Semana do Ano', 'y': 'Vendas (€)'},
-                    text=[formatar_moeda(v) for v in vendas_semana_top.values],
-                    color=vendas_semana_top.values,
-                    color_continuous_scale='Viridis'
-                )
-
-                fig_semana_top.update_layout(height=400, showlegend=False)
-                fig_semana_top.update_traces(textposition='outside')
-                st.plotly_chart(fig_semana_top, use_container_width=True, key="chart_semana_top20")
-                st.caption(f"🏆 Melhores semanas: S{vendas_semana_top.index[0]} lidera com {formatar_moeda(vendas_semana_top.values[0])}")
-
-    # TAB 4 - Análise Financeira
-    elif st.session_state.active_tab == "💰 Análise Financeira":
+    # TAB 5 - Análise Financeira
+    with tab5:
         st.header("💰 Análise Financeira Detalhada")
 
         # Faturamento por categoria
@@ -2854,8 +2798,8 @@ def main():
         else:
             st.info("Dados insuficientes para projeção (mínimo 5 dias).")
 
-    # TAB 5 - Comparação & Benchmarks
-    elif st.session_state.active_tab == "📊 Comparação & Benchmarks":
+    # TAB 6 - Comparação & Benchmarks
+    with tab6:
         st.header("📊 Comparação & Benchmarks")
 
         # Comparação entre categorias (Scatter Plot)
@@ -3053,8 +2997,8 @@ def main():
 
         st.plotly_chart(fig_performance, use_container_width=True)
 
-    # TAB 6 - Dados Detalhados
-    elif st.session_state.active_tab == "📑 Dados Detalhados":
+    # TAB 7 - Dados Detalhados
+    with tab7:
         st.header("📑 Dados Detalhados & Exportação")
 
         # Opções de agrupamento
@@ -3211,13 +3155,7 @@ def main():
                 with st.spinner("Gerando relatório Excel profissional..."):
                     try:
                         # Calcular métricas financeiras para o relatório
-                        # Converter para datetime para garantir compatibilidade com CostManagerV2
-                        dt_inicio = pd.to_datetime(data_inicio).to_pydatetime()
-                        dt_fim = pd.to_datetime(data_fim).to_pydatetime()
-                        
-                        metricas_financeiras_temp = cost_manager.calcular_metricas_financeiras(
-                            df_filtrado, dt_inicio, dt_fim
-                        )
+                        metricas_financeiras_temp = cost_manager.calcular_metricas_financeiras(df_filtrado, dias_periodo)
 
                         excel_avancado = gerar_relatorio_excel_avancado(
                             df_filtrado,
@@ -3274,8 +3212,8 @@ def main():
             st.write(f"Total: {df_filtrado['Produto'].nunique()}")
             st.write(f"Fontes: {df_filtrado['Fonte'].nunique()}")
 
-    # TAB 7 - Análise de Custos
-    elif st.session_state.active_tab == "💸 Análise de Custos":
+    # TAB 8 - Análise de Custos
+    with tab8:
         st.header("💸 Análise de Custos Operacionais")
 
         # Calcular métricas de custo (com datas para Despesify)
@@ -3459,7 +3397,7 @@ def main():
 
                     # Mostrar total
                     total_editado = df_editado['Valor_Mensal'].sum()
-                    st.metric("💰 Total Mensal (Editado)", f"{total_editado:,.2f}€")
+                    st.metric("💰 Total Mensal (Editado)", f"€{total_editado:,.2f}")
 
                 else:
                     st.error(f"❌ Ficheiro não encontrado: {csv_path}")
@@ -3524,7 +3462,7 @@ def main():
 
                         # Mostrar total
                         total_editado = df_editado['Valor_Mensal'].sum()
-                        st.metric("💰 Total Mensal (Editado - CSV)", f"{total_editado:,.2f}€")
+                        st.metric("💰 Total Mensal (Editado - CSV)", f"€{total_editado:,.2f}")
                     else:
                         st.info("ℹ️ Não há custos estimados no CSV para editar. Todos os custos operacionais vêm do Despesify.")
                 else:
@@ -3754,8 +3692,8 @@ def main():
                         ]
 
                         df_display['Data'] = pd.to_datetime(df_display['Data']).dt.strftime('%d/%m/%Y')
-                        df_display['Total (€)'] = df_display['Total (€)'].apply(lambda x: f"{x:,.2f}€")
-                        df_display['IVA (€)'] = df_display['IVA (€)'].apply(lambda x: f"{x:,.2f}€" if pd.notna(x) else "N/A")
+                        df_display['Total (€)'] = df_display['Total (€)'].apply(lambda x: f"€{x:,.2f}")
+                        df_display['IVA (€)'] = df_display['IVA (€)'].apply(lambda x: f"€{x:,.2f}" if pd.notna(x) else "N/A")
 
                         st.dataframe(df_display, use_container_width=True, height=300)
 
@@ -3788,9 +3726,9 @@ def main():
 
                                 with col2:
                                     st.markdown("### 💰 Valores")
-                                    st.metric("Total", f"{detalhes.get('amount', 0):,.2f}€")
-                                    st.metric("Base Tributável", f"{detalhes.get('base_tributavel', 0):,.2f}€" if detalhes.get('base_tributavel') else "N/A")
-                                    st.metric("IVA Total", f"{detalhes.get('vat_amount', 0):,.2f}€" if detalhes.get('vat_amount') else "N/A")
+                                    st.metric("Total", f"€{detalhes.get('amount', 0):,.2f}")
+                                    st.metric("Base Tributável", f"€{detalhes.get('base_tributavel', 0):,.2f}" if detalhes.get('base_tributavel') else "N/A")
+                                    st.metric("IVA Total", f"€{detalhes.get('vat_amount', 0):,.2f}" if detalhes.get('vat_amount') else "N/A")
 
                                 # Breakdown de IVA
                                 if detalhes.get('linhas_iva'):
@@ -3813,9 +3751,9 @@ def main():
                                                 'Base Tributável (€)', 'Taxa IVA (%)', 'Valor IVA (€)'
                                             ]
 
-                                            df_iva_display['Base Tributável (€)'] = df_iva_display['Base Tributável (€)'].apply(lambda x: f"{x:,.2f}€")
+                                            df_iva_display['Base Tributável (€)'] = df_iva_display['Base Tributável (€)'].apply(lambda x: f"€{x:,.2f}")
                                             df_iva_display['Taxa IVA (%)'] = df_iva_display['Taxa IVA (%)'].apply(lambda x: f"{x:.2f}%")
-                                            df_iva_display['Valor IVA (€)'] = df_iva_display['Valor IVA (€)'].apply(lambda x: f"{x:,.2f}€")
+                                            df_iva_display['Valor IVA (€)'] = df_iva_display['Valor IVA (€)'].apply(lambda x: f"€{x:,.2f}")
 
                                             st.dataframe(df_iva_display, use_container_width=True, hide_index=True)
 
@@ -3844,25 +3782,9 @@ def main():
                                         """)
                             else:
                                 st.error("❌ Não foi possível obter os detalhes da fatura.")
-    # TAB 8 - Rentabilidade & Margens
-    elif st.session_state.active_tab == "📊 Rentabilidade & Margens":
+    # TAB 9 - Rentabilidade & Margens
+    with tab9:
         st.header("📊 Rentabilidade & Análise de Margens")
-
-        # Calcular métricas de custo (com datas para Despesify)
-        data_min_filtrado = df_filtrado['Data'].min().to_pydatetime()
-        data_max_filtrado = df_filtrado['Data'].max().to_pydatetime()
-        metricas_financeiras = cost_manager.calcular_metricas_financeiras(
-            df_filtrado, data_min_filtrado, data_max_filtrado
-        )
-
-        # Mostrar fonte dos custos operacionais
-        fonte_custos = metricas_financeiras.get('fonte_custos_operacionais', 'ESTIMADO')
-        if fonte_custos == 'REAL':
-            st.success("✅ Custos Operacionais REAIS do Despesify (desde 1/12/2025)")
-        else:
-            st.warning("⚠️ Custos Operacionais ESTIMADOS (antes de 1/12/2025 ou sem dados no Despesify)")
-
-        st.markdown("---")
 
         # KPIs de Rentabilidade
         col1, col2, col3, col4 = st.columns(4)
@@ -4003,8 +3925,8 @@ def main():
                     )
 
 
-    # TAB 9 - Break-Even Analysis
-    elif st.session_state.active_tab == "🎯 Break-Even Analysis":
+    # TAB 10 - Break-Even Analysis
+    with tab10:
         st.header("🎯 Análise de Ponto de Equilíbrio (Break-Even)")
 
         # Calcular break-even
@@ -4254,13 +4176,13 @@ def main():
             - Continue monitorando custos e otimizando margens
             """)
 
-    # TAB 10 - Jogos Santa Casa
-    elif st.session_state.active_tab == "🎰 Jogos Santa Casa":
+    # TAB 11 - Jogos Santa Casa
+    with tab11:
         df_jogos = carregar_dados_santa_casa()
         pagina_jogos_santa_casa(df_jogos, data_inicio, data_fim)
 
-    # TAB 11 - Forecast & Encomendas
-    elif st.session_state.active_tab == "📦 Forecast & Encomendas":
+    # TAB 12 - Forecast & Encomendas
+    with tab12:
         st.header("📦 Forecast & Previsão de Encomendas")
         st.caption("Análise de sazonalidade e recomendações de encomenda por produto")
 

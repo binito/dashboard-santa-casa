@@ -113,7 +113,7 @@ ou
 
 1. **MariaDB** com base de dados `despesify`
    - User: `root`
-   - Password: `cathie`
+   - Password: `ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo`
    - Tabelas: `expenses`, `categories`
 
 2. **Bibliotecas Python:**
@@ -207,7 +207,7 @@ python3 cost_manager_v2.py
 sudo systemctl status mariadb
 
 # Testar login
-mysql -u root -pcathie -e "USE despesify; SELECT COUNT(*) FROM expenses;"
+mysql -u root -pppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo -e "USE despesify; SELECT COUNT(*) FROM expenses;"
 ```
 
 ### Problema: "Usando custos estimados" (mas deveria usar REAIS)

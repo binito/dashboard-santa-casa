@@ -1,0 +1,17 @@
+Produto_POS,Preco_Compra,Qtd_Compra,Unidade_Compra,Qtd_Dose,Unidade_Dose,Custo_Dose
+CAFÉ,40.4,1000.0,Kg,8.0,Gramas,0.3232
+Abatanado,40.4,1000.0,Kg,8.0,Gramas,0.3232
+Abatanado Duplo,40.4,1000.0,Kg,16.0,Gramas,0.6464
+Aguardente,12.22,100.0,Litro,3.0,cl,0.3666
+AGUAS C/SABOR,15.8,24.0,Unidade,1.0,Unidade,0.6583
+COMPAL,10.54,15.0,Unidade,1.0,Unidade,0.7027
+Ricard,14.25,70.0,Litro,2.0,cl,0.4071
+Aliança Velha,16.69,70.0,Litro,3.0,cl,0.7153
+BRANDYS,14.39,100.0,Litro,3.0,cl,0.4317
+Martini com Cerveja,0.647567768115942,1.0,Unid,1.0,Unid,0.6476
+Bolos,0.86,1.0,Unidade,1.0,Unidade,0.86
+PASTELARIA,0.86,1.0,Unidade,1.0,Unidade,0.86
+Travesseiro,0.76,1.0,Unidade,1.0,Unidade,0.76
+PACOTE BATATA FRITA GRANDE,1.72,1.0,Unidade,1.0,Unidade,1.72
+PACOTE BATATA FRITA PEQUENO,1.0,1.0,Unidade,1.0,Unidade,1.0
+PASTILHAS,2.32,40.0,Unidade,1.0,Unidade,0.058

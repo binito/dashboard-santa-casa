@@ -128,7 +128,7 @@ tail -f dashboard_v7_8502.log
 - **MariaDB:** despesify
   - Host: localhost
   - User: root
-  - Password: cathie
+  - Password: ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo
   - Tabelas: expenses, categories
 
 ---
@@ -230,7 +230,7 @@ python3 -c "import bcrypt; print(bcrypt.hashpw('sua_password'.encode(), bcrypt.g
 ### Problema: Não conecta ao Despesify
 ```bash
 # Testar conexão MariaDB
-mysql -u root -pcathie -e "USE despesify; SELECT COUNT(*) FROM expenses;"
+mysql -u root -pppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo -e "USE despesify; SELECT COUNT(*) FROM expenses;"
 
 # Verificar serviço MariaDB
 sudo systemctl status mariadb

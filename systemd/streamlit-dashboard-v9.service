@@ -1,0 +1,18 @@
+[Unit]
+Description=Streamlit Dashboard v9 - Cafe Martins (MariaDB Ultra-Rapido + Despesify + Novadis)
+After=network.target mariadb.service
+Wants=mariadb.service
+
+[Service]
+Type=simple
+User=jorge
+WorkingDirectory=/home/jorge/Documentos/Streamlit
+ExecStart=/home/jorge/Documentos/Streamlit/venv/bin/streamlit run dashboard_v9.py --server.port=8502 --server.address=0.0.0.0 --server.headless=true
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment="PATH=/home/jorge/Documentos/Streamlit/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+[Install]
+WantedBy=multi-user.target

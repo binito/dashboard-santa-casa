@@ -1,0 +1,16 @@
+[Unit]
+Description=Streamlit Dashboard v10 - Cafe Martins Cockpit
+After=network.target
+
+[Service]
+Type=simple
+User=jorge
+WorkingDirectory=/home/jorge/Documentos/Streamlit
+ExecStart=/home/jorge/Documentos/Streamlit/venv/bin/streamlit run dashboard_v10.py --server.port=8503 --server.address=0.0.0.0 --server.headless=true
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

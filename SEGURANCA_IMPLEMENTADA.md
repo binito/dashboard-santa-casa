@@ -19,7 +19,7 @@ Foram implementadas melhorias críticas de segurança para proteger credenciais 
 # data_loader_v8.py e despesify_loader.py
 DB_CONFIG = {
     'user': 'root',
-    'password': 'cathie',  # ❌ SENHA EM TEXTO PLANO!
+    'password': 'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo',  # ❌ SENHA EM TEXTO PLANO!
     'database': 'dashboard'
 }
 ```

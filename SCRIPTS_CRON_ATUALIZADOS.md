@@ -135,7 +135,7 @@ DELETE FROM dados_dashboard WHERE YEAR(data) = YEAR(CURDATE())
 ### **Testar agora (2025):**
 ```bash
 # Ver o que seria deletado (não executa)
-mysql -u root -p'cathie' dashboard -e "
+mysql -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard -e "
 SELECT
     YEAR(data) as ano,
     COUNT(*) as registos_afetados
@@ -152,7 +152,7 @@ GROUP BY YEAR(data);
 ### **Simular 2026 (teste):**
 ```bash
 # Ver o que seria preservado
-mysql -u root -p'cathie' dashboard -e "
+mysql -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard -e "
 SELECT
     YEAR(data) as ano,
     COUNT(*) as registos
@@ -224,13 +224,13 @@ tail -20 /home/jorge/web_scrapper/load_pos2.log
 ### **Backup antes da primeira execução:**
 ```bash
 # Criar backup de segurança
-mysqldump -u root -p'cathie' dashboard > \
+mysqldump -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard > \
   /home/jorge/backups/dashboard_backup_$(date +%Y%m%d).sql
 ```
 
 ### **Restaurar se necessário:**
 ```bash
-mysql -u root -p'cathie' dashboard < \
+mysql -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard < \
   /home/jorge/backups/dashboard_backup_20251210.sql
 ```
 

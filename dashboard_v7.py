@@ -2838,7 +2838,13 @@ def main():
                 with st.spinner("Gerando relatório Excel profissional..."):
                     try:
                         # Calcular métricas financeiras para o relatório
-                        metricas_financeiras_temp = cost_manager.calcular_metricas_financeiras(df_filtrado, dias_periodo)
+                        # Converter para datetime para garantir compatibilidade com CostManagerV2
+                        dt_inicio = pd.to_datetime(data_inicio).to_pydatetime()
+                        dt_fim = pd.to_datetime(data_fim).to_pydatetime()
+                        
+                        metricas_financeiras_temp = cost_manager.calcular_metricas_financeiras(
+                            df_filtrado, dt_inicio, dt_fim
+                        )
 
                         excel_avancado = gerar_relatorio_excel_avancado(
                             df_filtrado,

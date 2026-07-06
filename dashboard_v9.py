@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 from datetime import datetime, timedelta
-from data_loader_v8 import DataLoaderV8  # V8: CARREGA DO MARIADB
+from data_loader_v9 import DataLoaderV9  # V9: CARREGADOR OTIMIZADO
 from cost_manager_v2 import CostManagerV2  # NOVA VERSÃO COM DESPESIFY
 from product_categorizer import ProductCategorizer
 import streamlit_authenticator as stauth
@@ -27,7 +27,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard v8 🚀 - Café Martins (MariaDB + Custos REAIS)",
+    page_title="Dashboard v9 🚀 - Café Martins (Otimizado + Novadis)",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -198,12 +198,18 @@ st.markdown("""
 def carregar_dados():
     """Carrega dados com custos REAIS (Despesify) + estimados - cache de 30 minutos
 
-    V8: Carrega direto do MariaDB - ULTRA-RÁPIDO!
+    V9: Carrega direto do MariaDB - ULTRA-RÁPIDO!
     Usa cache_resource porque cost_manager tem conexão MariaDB (não serializável com pickle)
+    (Cache refresh for Delta integration)
     """
-    with st.spinner("🚀 Carregando dados do MariaDB (ultra-rápido)..."):
-        loader = DataLoaderV8(usar_despesify=True)  # V8: MARIADB
+    with st.spinner("🚀 Carregando dados do MariaDB (V9 - Otimizado)..."):
+        loader = DataLoaderV9(usar_despesify=True)  # V9: MARIADB
         df = loader.carregar_tudo_integrado_com_custos()
+        # Garantir que carregar_delta está acessível e pré-carregar se necessário
+        try:
+            _ = loader.carregar_delta()
+        except:
+            pass
         cost_manager = loader.cost_manager  # CostManagerV2 com Despesify
         return df, loader, cost_manager
 
@@ -225,7 +231,7 @@ def calcular_delta(atual, anterior):
     return ((atual - anterior) / anterior) * 100
 
 
-def filtrar_dados(df, categorias, subcategorias, fontes, data_inicio, data_fim, apenas_dias_uteis):
+def filtrar_dados(df, categorias, subcategorias, fontes, data_inicio, data_fim, excluir_domingos):
     """Aplica filtros aos dados"""
     df_filtrado = df.copy()
 
@@ -247,9 +253,9 @@ def filtrar_dados(df, categorias, subcategorias, fontes, data_inicio, data_fim, 
     if fontes:
         df_filtrado = df_filtrado[df_filtrado['Fonte'].isin(fontes)]
 
-    # Filtro de dias úteis
-    if apenas_dias_uteis:
-        df_filtrado = df_filtrado[df_filtrado['Dia_Semana'] < 5]
+    # Filtro de Segunda a Sábado (Exclui Domingos)
+    if excluir_domingos:
+        df_filtrado = df_filtrado[df_filtrado['Dia_Semana'] < 6]
 
     return df_filtrado
 
@@ -1215,7 +1221,7 @@ def pagina_jogos_santa_casa(df, data_inicio=None, data_fim=None):
         st.subheader("📆 Análise Semana a Semana")
 
         # Preparar dados semanais
-        df_semana = df.copy()
+        df_semana = df_filtrado.copy()
         vendas_semana = df_semana.groupby(['Data', 'Jogo'])['Vendas ilíquidas (€)'].sum().reset_index()
         vendas_semana = vendas_semana.sort_values('Data')
 
@@ -1722,8 +1728,8 @@ def gerar_forecast_produtos(df, cost_manager, dias_analise=60, produtos_regulare
 # Interface principal
 def main():
     # Cabeçalho
-    st.markdown('<h1 class="main-title">🚀 Dashboard  - Café Martins</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Análise Completa com Custos REAIS (Despesify) + Rentabilidade + Jogos Santa Casa</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">🚀 Dashboard v9 - Café Martins</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Análise Completa com Custos REAIS + Rentabilidade + Jogos Santa Casa + Novadis</p>', unsafe_allow_html=True)
 
     # Carregar dados
     try:
@@ -1756,7 +1762,11 @@ def main():
         "📊 Rentabilidade & Margens",
         "🎯 Break-Even Analysis",
         "🎰 Jogos Santa Casa",
-        "📦 Forecast & Encomendas"
+        "📦 Forecast & Encomendas",
+        "📦 Encomendas Novadis",
+        "📦 Encomendas Delta",
+        "📋 Fichas Técnicas",
+        "💰 Margens de Lucro"
     ]
 
     # Selectbox para navegação entre tabs
@@ -1854,9 +1864,9 @@ def main():
         default=fontes_disponiveis
     )
 
-    # Opção de dias úteis
+    # Opção de Segunda a Sábado
     st.sidebar.subheader("⚙️ Opções")
-    apenas_dias_uteis = st.sidebar.checkbox("Mostrar apenas dias úteis", value=False)
+    excluir_domingos = st.sidebar.checkbox("Segunda a Sábado (Excluir Domingos)", value=False)
 
     # Botão de reset total
     if st.sidebar.button("🔄 Reset Total", use_container_width=True):
@@ -1872,7 +1882,7 @@ def main():
         fontes_selecionadas,
         data_inicio,
         data_fim,
-        apenas_dias_uteis
+        excluir_domingos
     )
 
     if df_filtrado.empty:
@@ -1906,7 +1916,7 @@ def main():
         fontes_selecionadas,
         data_inicio_anterior,
         data_fim_anterior,
-        apenas_dias_uteis
+        excluir_domingos
     )
 
     if not df_anterior.empty:
@@ -2346,7 +2356,7 @@ def main():
             fontes_selecionadas,
             data_inicio_consecutivo,
             data_fim_consecutivo,
-            apenas_dias_uteis
+            excluir_domingos
         )
 
         if not df_consecutivo.empty:
@@ -3308,10 +3318,25 @@ def main():
             )
 
         with col3:
-            st.metric(
-                "🏢 Custos Operacionais",
-                formatar_moeda(metricas_financeiras.get('custos_operacionais', 0))
-            )
+            custos_ops_periodo = metricas_financeiras.get('custos_operacionais', 0)
+            fonte_custos = metricas_financeiras.get('fonte_custos_operacionais', 'ESTIMADO')
+
+            # Calcular custo mensal para referência
+            dias_periodo = (data_max_filtrado - data_min_filtrado).days + 1
+            if fonte_custos == 'ESTIMADO' and dias_periodo > 0 and dias_periodo < 30:
+                # Mostrar custo mensal estimado para contexto
+                custo_mensal_estimado = cost_manager.get_custos_operacionais_mensais_estimados()
+                st.metric(
+                    "🏢 Custos Operacionais",
+                    formatar_moeda(custos_ops_periodo),
+                    help=f"💡 Período: {dias_periodo} dia(s) | Custo Mensal Estimado: {formatar_moeda(custo_mensal_estimado)}"
+                )
+            else:
+                st.metric(
+                    "🏢 Custos Operacionais",
+                    formatar_moeda(custos_ops_periodo),
+                    help=f"Fonte: {fonte_custos}"
+                )
 
         with col4:
             custo_total = metricas_financeiras.get('custo_total', 0)
@@ -3406,6 +3431,15 @@ def main():
                 # MODO EDIÇÃO - Editor de custos operacionais
                 st.markdown("**✏️ Editar Custos Operacionais Mensais (CSV):**")
 
+                # Instruções de uso
+                st.info("""
+                📝 **Como usar o editor:**
+                - ✏️ **Editar valores:** Clique numa célula e altere o valor
+                - ➕ **Adicionar novo item:** Clique no botão ➕ no final da tabela
+                - 🗑️ **Remover item:** Selecione a linha (checkbox à esquerda) e clique no ícone 🗑️
+                - 💾 Clique em "Guardar Alterações" para salvar
+                """)
+
                 # Carregar CSV de custos operacionais
                 import os
                 csv_path = os.path.join('dados_custos', 'custos_operacionais.csv')
@@ -3422,19 +3456,33 @@ def main():
                         use_container_width=True,
                         num_rows="dynamic",
                         column_config={
-                            "Categoria": st.column_config.TextColumn("Categoria", required=True),
+                            "Categoria": st.column_config.TextColumn(
+                                "Categoria",
+                                required=True,
+                                help="Categoria principal do custo"
+                            ),
+                            "Subcategoria": st.column_config.TextColumn(
+                                "Subcategoria",
+                                required=True,
+                                help="Descrição específica do custo"
+                            ),
                             "Valor_Mensal": st.column_config.NumberColumn(
                                 "Valor Mensal (€)",
                                 min_value=0,
                                 format="€%.2f",
-                                required=True
+                                required=True,
+                                help="Valor mensal do custo"
                             ),
                             "Tipo": st.column_config.SelectboxColumn(
                                 "Tipo",
                                 options=["Fixo", "Variável"],
-                                required=True
+                                required=True,
+                                help="Fixo = valor constante, Variável = pode mudar"
                             ),
-                            "Descricao": st.column_config.TextColumn("Descrição")
+                            "Notas": st.column_config.TextColumn(
+                                "Notas",
+                                help="Observações adicionais"
+                            )
                         },
                         hide_index=True,
                         key="editor_custos_op"
@@ -3481,25 +3529,48 @@ def main():
                     if not df_editavel.empty:
                         st.markdown("**✏️ Editar Custos Operacionais Mensais (CSV):**")
 
+                        # Instruções de uso
+                        st.info("""
+                        📝 **Como usar o editor:**
+                        - ✏️ **Editar valores:** Clique numa célula e altere o valor
+                        - ➕ **Adicionar novo item:** Clique no botão ➕ no final da tabela
+                        - 🗑️ **Remover item:** Selecione a linha (checkbox à esquerda) e clique no ícone 🗑️
+                        - 💾 Clique em "Guardar Alterações" para salvar
+                        """)
+
                         # Editor de dados
                         df_editado = st.data_editor(
                             df_editavel,
                             use_container_width=True,
                             num_rows="dynamic",
                             column_config={
-                                "Categoria": st.column_config.TextColumn("Categoria", required=True),
+                                "Categoria": st.column_config.TextColumn(
+                                    "Categoria",
+                                    required=True,
+                                    help="Categoria principal do custo"
+                                ),
+                                "Subcategoria": st.column_config.TextColumn(
+                                    "Subcategoria",
+                                    required=True,
+                                    help="Descrição específica do custo"
+                                ),
                                 "Valor_Mensal": st.column_config.NumberColumn(
                                     "Valor Mensal (€)",
                                     min_value=0,
                                     format="€%.2f",
-                                    required=True
+                                    required=True,
+                                    help="Valor mensal do custo"
                                 ),
                                 "Tipo": st.column_config.SelectboxColumn(
                                     "Tipo",
                                     options=["Fixo", "Variável"],
-                                    required=True
+                                    required=True,
+                                    help="Fixo = valor constante, Variável = pode mudar"
                                 ),
-                                "Descricao": st.column_config.TextColumn("Descrição")
+                                "Notas": st.column_config.TextColumn(
+                                    "Notas",
+                                    help="Observações adicionais"
+                                )
                             },
                             hide_index=True,
                             key="editor_custos_op_com_despesify"
@@ -4177,23 +4248,63 @@ def main():
         # Dias para atingir break-even
         st.subheader("📆 Projeção de Break-Even")
 
+        st.info("""
+        **💡 Como interpretar "Dias para Break-Even":**
+
+        Este cálculo responde: *"Quantos dias de operação (com as vendas e margens atuais) são necessários
+        para acumular margem suficiente para pagar os custos fixos mensais?"*
+
+        - As despesas fixas (rendas, ordenados) caem tipicamente no **dia 28** de cada mês
+        - Durante o mês, o negócio acumula margem de contribuição das vendas diárias
+        - O break-even mostra quantos dias de vendas são necessários para cobrir essas despesas
+        - Usa **custos ESTIMADOS** completos (não parciais) do ficheiro de configuração
+        """)
+
         dias_be = break_even.get('dias_para_break_even', 0)
 
-        if dias_be > 0 and dias_be < 365:
+        # Verificar se os custos fixos estão configurados
+        if custos_fixos <= 0:
+            st.error("""
+            ⚠️ **Custos Fixos não configurados!**
+
+            Para calcular o Break-Even, é necessário configurar os custos fixos mensais.
+
+            **Opções:**
+            1. Criar ficheiro `dados_custos/custos_operacionais.csv` com os seus custos
+            2. Configurar a integração Despesify para custos REAIS
+            """)
+        elif vendas_atuais <= 0:
+            st.warning("⚠️ Sem vendas no período selecionado para calcular projeção")
+        elif dias_be > 0:
             col1, col2 = st.columns(2)
 
             with col1:
                 st.metric(
                     "🗓️ Dias para Break-Even",
-                    f"{dias_be:.1f} dias"
+                    f"{dias_be:.1f} dias" if dias_be < 999 else "Mais de 999 dias"
                 )
 
-                if dias_be <= 30:
+                # Mostrar detalhes do cálculo
+                margem_diaria_atual = vendas_atuais * (margem_contrib/100)
+                st.caption(f"""
+                📊 **Detalhes do Cálculo:**
+                - Custos Fixos: {formatar_moeda(custos_fixos)}/mês
+                - Margem Diária: {formatar_moeda(margem_diaria_atual)}/dia
+                - Dias = {formatar_moeda(custos_fixos)} ÷ {formatar_moeda(margem_diaria_atual)} = {dias_be:.1f} dias
+                """)
+
+                if dias_be <= 7:
+                    st.success(f"✅ Excelente! Break-even em apenas {dias_be:.1f} dias (1 semana)")
+                elif dias_be <= 15:
+                    st.success(f"✅ Muito bom! Break-even em {dias_be:.1f} dias (~2 semanas)")
+                elif dias_be <= 30:
                     st.success("✅ Break-even atingível no mês atual!")
                 elif dias_be <= 60:
                     st.warning("⚠️ Break-even em aproximadamente 2 meses")
-                else:
+                elif dias_be <= 180:
                     st.error("❌ Break-even requer mais de 2 meses")
+                else:
+                    st.error(f"❌ Break-even requer {dias_be/30:.1f} meses ({dias_be:.0f} dias)")
 
             with col2:
                 # Projeção de lucro por volume
@@ -4225,12 +4336,20 @@ def main():
 
                 st.plotly_chart(fig_sensibilidade, use_container_width=True)
         else:
-            st.warning("⚠️ Vendas atuais insuficientes para calcular projeção de break-even precisa")
+            st.warning("⚠️ Dados insuficientes para calcular projeção de break-even")
 
         st.markdown("---")
 
         # Recomendações
         st.subheader("💡 Recomendações Estratégicas")
+
+        # Calcular lucro líquido estimado (mensal)
+        vendas_mensais_atuais = vendas_atuais * 30 if vendas_atuais > 0 else 0
+        lucro_liquido = break_even.get('lucro_minimo_esperado', 0)
+
+        # Se não houver lucro_minimo_esperado, calcular manualmente
+        if lucro_liquido == 0 and vendas_mensais_atuais > 0:
+            lucro_liquido = (vendas_mensais_atuais * (margem_contrib / 100)) - custos_fixos
 
         if margem_seg < 0:
             st.error(f"""
@@ -4738,6 +4857,896 @@ def main():
 
         **Recomendação**: Produtos com alta variabilidade devem ter stock de segurança maior.
         """)
+
+    # TAB 12 - Encomendas Novadis
+    elif st.session_state.active_tab == "📦 Encomendas Novadis":
+        st.header("📦 Encomendas Novadis")
+        st.caption("Histórico e análise de encomendas do fornecedor Novadis")
+
+        # Carregar dados Novadis (cached via loader)
+        with st.spinner("📦 Carregando dados da Novadis..."):
+            # Usar o loader da instância principal (que é cached)
+            # data_inicio e data_fim já vêm dos filtros da sidebar
+            df_novadis = loader.carregar_novadis_processado(data_inicio, data_fim)
+
+        if df_novadis.empty:
+            st.warning("⚠️ Nenhuma encomenda encontrada para o período selecionado.")
+            st.info("Tente selecionar um período mais abrangente na barra lateral.")
+        else:
+            # KPIs Novadis
+            col1, col2, col3, col4 = st.columns(4)
+
+            total_gasto = df_novadis['custo_total'].sum()
+            num_encomendas = df_novadis['numero_pedido'].nunique()
+            itens_comprados = df_novadis['unidades_vendaveis'].sum()
+            custo_medio_pedido = total_gasto / num_encomendas if num_encomendas > 0 else 0
+
+            with col1:
+                st.metric("💰 Total Gasto (c/ IVA)", formatar_moeda(total_gasto))
+            
+            with col2:
+                st.metric("📦 Nº Encomendas", num_encomendas)
+            
+            with col3:
+                st.metric("🍺 Unidades Compradas", f"{itens_comprados:,.0f}")
+                
+            with col4:
+                st.metric("🧾 Custo Médio / Pedido", formatar_moeda(custo_medio_pedido))
+
+            st.markdown("---")
+
+            # Sub-tabs para organização
+            tab_detalhes, tab_produtos, tab_evolucao = st.tabs([
+                "📋 Detalhes das Encomendas", 
+                "🍺 Análise por Produto",
+                "📈 Evolução de Custos"
+            ])
+
+            with tab_detalhes:
+                st.subheader("📋 Lista de Encomendas Detalhada")
+                st.caption("💡 Se a conversão de unidades estiver errada, ajuste a coluna 'Unidades POS' e clique em Guardar.")
+                
+                # Preparar tabela para exibição
+                df_display = df_novadis[[
+                    'data', 'numero_pedido', 'produto_novadis', 
+                    'quantidade_encomendada', 'preco_unitario_com_iva', 'custo_total',
+                    'produto_pos', 'unidades_vendaveis'
+                ]].copy()
+                
+                # Manter cópia original para comparar mudanças
+                df_original = df_display.copy()
+                
+                df_display['data'] = df_display['data'].dt.strftime('%d/%m/%Y')
+                # NÃO formatar como moeda aqui se quisermos que seja editável de forma simples
+                # ou usar column_config para formatar na exibição
+                
+                df_display.columns = [
+                    'Data', 'Nº Pedido', 'Produto (Novadis)', 
+                    'Qtd Emb.', 'Preço Unit.', 'Total (€)',
+                    'Produto (POS)', 'Unidades POS'
+                ]
+                
+                # Editor de dados
+                df_editado = st.data_editor(
+                    df_display, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "Data": st.column_config.TextColumn("Data", disabled=True),
+                        "Nº Pedido": st.column_config.TextColumn("Nº Pedido", disabled=True),
+                        "Produto (Novadis)": st.column_config.TextColumn("Produto (Novadis)", disabled=True),
+                        "Qtd Emb.": st.column_config.NumberColumn("Qtd Emb.", disabled=True),
+                        "Preço Unit.": st.column_config.NumberColumn("Preço Unit.", format="%.2f€", disabled=True),
+                        "Total (€)": st.column_config.NumberColumn("Total (€)", format="%.2f€", disabled=True),
+                        "Produto (POS)": st.column_config.TextColumn("Produto (POS)", disabled=True),
+                        "Unidades POS": st.column_config.NumberColumn(
+                            "Unidades POS",
+                            help="Ajuste o número total de unidades (ex: se 1 caixa tem 24 unidades, e comprou 1 caixa, coloque 24)",
+                            min_value=1,
+                            step=1
+                        )
+                    },
+                    key="editor_novadis_detalhes"
+                )
+
+                if st.button("💾 Guardar Ajustes de Quantidade", type="primary"):
+                    # Identificar linhas alteradas
+                    cambios = []
+                    for idx in range(len(df_editado)):
+                        val_original = df_original.iloc[idx]['unidades_vendaveis']
+                        val_novo = df_editado.iloc[idx]['Unidades POS']
+                        
+                        if val_original != val_novo:
+                            prod_novadis = df_original.iloc[idx]['produto_novadis']
+                            qtd_emb = df_original.iloc[idx]['quantidade_encomendada']
+                            
+                            # Calcular novas unidades por caixa (multiplicador)
+                            unid_por_caixa = val_novo / qtd_emb if qtd_emb > 0 else val_novo
+                            cambios.append({
+                                'produto_novadis': prod_novadis,
+                                'unidades_por_caixa': int(unid_por_caixa)
+                            })
+                    
+                    if cambios:
+                        df_novos_maps = pd.DataFrame(cambios).drop_duplicates(subset=['produto_novadis'])
+                        arquivo_map_unid = Path('mapeamento_unidades_novadis.csv')
+                        
+                        if arquivo_map_unid.exists():
+                            df_map_existente = pd.read_csv(arquivo_map_unid)
+                            # Atualizar existentes e adicionar novos
+                            df_map_existente = df_map_existente[~df_map_existente['produto_novadis'].isin(df_novos_maps['produto_novadis'])]
+                            df_final_map = pd.concat([df_map_existente, df_novos_maps], ignore_index=True)
+                        else:
+                            df_final_map = df_novos_maps
+                            
+                        df_final_map.to_csv(arquivo_map_unid, index=False)
+                        st.success(f"✅ {len(df_novos_maps)} mapeamentos de unidades atualizados!")
+                        st.rerun()
+                    else:
+                        st.info("ℹ️ Nenhuma alteração detectada nas quantidades.")
+
+            with tab_produtos:
+                st.subheader("🍺 Top Produtos Comprados")
+                
+                # Agrupar por produto POS
+                top_produtos = df_novadis.groupby('produto_pos').agg({
+                    'custo_total': 'sum',
+                    'unidades_vendaveis': 'sum',
+                    'numero_pedido': 'nunique'
+                }).reset_index().sort_values('custo_total', ascending=False)
+                
+                # Gráfico
+                fig_prod = px.bar(
+                    top_produtos.head(15),
+                    x='custo_total',
+                    y='produto_pos',
+                    orientation='h',
+                    title='Top 15 Produtos por Custo Total',
+                    labels={'custo_total': 'Custo Total (€)', 'produto_pos': 'Produto'},
+                    text=[formatar_moeda(v) for v in top_produtos.head(15)['custo_total']]
+                )
+                fig_prod.update_layout(yaxis={'categoryorder': 'total ascending'})
+                st.plotly_chart(fig_prod, use_container_width=True)
+                
+                # Tabela resumida
+                st.dataframe(
+                    top_produtos.style.format({
+                        'custo_total': '{:.2f}€',
+                        'unidades_vendaveis': '{:,.0f}'
+                    }),
+                    use_container_width=True
+                )
+
+            with tab_evolucao:
+                st.subheader("📈 Evolução de Custos Mensais")
+                
+                # Agrupar por mês
+                df_novadis['mes_ano'] = df_novadis['data'].dt.to_period('M').astype(str)
+                custos_mensais = df_novadis.groupby('mes_ano')['custo_total'].sum().reset_index()
+                
+                fig_ev = px.bar(
+                    custos_mensais,
+                    x='mes_ano',
+                    y='custo_total',
+                    title='Evolução de Gastos com Novadis',
+                    labels={'custo_total': 'Total Gasto (€)', 'mes_ano': 'Mês'},
+                    text=[formatar_moeda(v) for v in custos_mensais['custo_total']]
+                )
+                st.plotly_chart(fig_ev, use_container_width=True)
+
+    # ============================================================
+    # NOVA TAB 12.5 - Encomendas Delta
+    # ============================================================
+    elif st.session_state.active_tab == "📦 Encomendas Delta":
+        st.header("📦 Encomendas Delta (Nabeiro)")
+        st.caption("Histórico e análise de faturas do fornecedor Delta / Grupo Nabeiro")
+
+        # Carregar dados Delta
+        with st.spinner("📦 Carregando dados da Delta..."):
+            df_delta = loader.carregar_delta(data_inicio, data_fim)
+
+        if df_delta.empty:
+            st.warning("⚠️ Nenhuma fatura Delta encontrada para o período selecionado.")
+            st.info("Verifique se o arquivo CSV em /home/jorge/Documentos/delta/dados/faturas_nabeiro.csv existe e contém dados.")
+        else:
+            # KPIs Delta
+            col1, col2, col3 = st.columns(3)
+
+            total_gasto = df_delta['Total_EUR'].sum()
+            num_faturas = df_delta['Numero_Fatura'].nunique()
+            custo_medio_fatura = total_gasto / num_faturas if num_faturas > 0 else 0
+
+            with col1:
+                st.metric("💰 Total Gasto Delta", formatar_moeda(total_gasto))
+            
+            with col2:
+                st.metric("📦 Nº Faturas", num_faturas)
+                
+            with col3:
+                st.metric("🧾 Custo Médio / Fatura", formatar_moeda(custo_medio_fatura))
+
+            st.markdown("---")
+
+            # Sub-tabs para organização
+            tab_lista, tab_produtos, tab_grafico = st.tabs([
+                "📋 Lista de Faturas", 
+                "🍺 Detalhes por Produto",
+                "📈 Evolução de Gastos"
+            ])
+
+            with tab_lista:
+                st.subheader("📋 Histórico de Faturas Delta")
+                
+                # Preparar tabela para exibição
+                df_disp_delta = df_delta[['Data_Fatura', 'Numero_Fatura', 'Total_EUR', 'Arquivo']].copy()
+                df_disp_delta['Data_Fatura'] = df_disp_delta['Data_Fatura'].dt.strftime('%d/%m/%Y')
+                
+                df_disp_delta.columns = ['Data', 'Nº Fatura', 'Total (€)', 'Arquivo PDF']
+                
+                st.dataframe(
+                    df_disp_delta,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Total (€)": st.column_config.NumberColumn("Total (€)", format="%.2f€")
+                    }
+                )
+
+            with tab_produtos:
+                st.subheader("🍺 Detalhe de Produtos (Itens)")
+                # Carregar todos os itens detalhados
+                df_itens_delta = loader.carregar_delta_itens()
+                
+                if df_itens_delta.empty:
+                    st.info("Nenhum detalhe de produto disponível.")
+                else:
+                    # Filtrar apenas itens das faturas que estão no período
+                    faturas_no_periodo = df_delta['Numero_Fatura'].astype(str).tolist()
+                    df_itens_filtrado = df_itens_delta[df_itens_delta['Numero_Fatura'].astype(str).isin(faturas_no_periodo)]
+                    
+                    if df_itens_filtrado.empty:
+                        st.info("Nenhum item encontrado para as faturas deste período.")
+                    else:
+                        # KPI de itens
+                        total_itens = df_itens_filtrado['Quantidade'].sum()
+                        top_item = df_itens_filtrado.groupby('Descricao')['Total_Liquido'].sum().idxmax()
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Total Itens Comprados", f"{total_itens:,.0f}")
+                        with col2:
+                            st.metric("Produto com Maior Investimento", top_item)
+
+                        # Tabela Detalhada
+                        st.markdown("---")
+                        df_disp_itens = df_itens_filtrado[[
+                            'Descricao', 'Quantidade', 'Unidade', 'Preco_Unit_Liquido', 
+                            'Total_Liquido', 'IVA_Pct', 'Total_Com_IVA'
+                        ]].copy()
+                        
+                        df_disp_itens.columns = [
+                            'Produto', 'Qtd', 'Un.', 'Preço Unit. (Líq)', 
+                            'Total (Líq)', 'IVA %', 'Total (c/ IVA)'
+                        ]
+                        
+                        st.dataframe(
+                            df_disp_itens.sort_values('Total (Líq)', ascending=False),
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Preço Unit. (Líq)": st.column_config.NumberColumn(format="%.3f€"),
+                                "Total (Líq)": st.column_config.NumberColumn(format="%.2f€"),
+                                "Total (c/ IVA)": st.column_config.NumberColumn(format="%.2f€")
+                            }
+                        )
+
+            with tab_grafico:
+                st.subheader("📈 Evolução de Gastos Delta")
+                
+                # Agrupar por mês
+                df_delta['mes_ano'] = df_delta['Data_Fatura'].dt.to_period('M').astype(str)
+                gastos_mensais_delta = df_delta.groupby('mes_ano')['Total_EUR'].sum().reset_index()
+                
+                fig_delta = px.bar(
+                    gastos_mensais_delta,
+                    x='mes_ano',
+                    y='Total_EUR',
+                    title='Evolução de Gastos com Delta (Mensal)',
+                    labels={'Total_EUR': 'Total Gasto (€)', 'mes_ano': 'Mês'},
+                    text=[formatar_moeda(v) for v in gastos_mensais_delta['Total_EUR']]
+                )
+                st.plotly_chart(fig_delta, use_container_width=True)
+
+    # ============================================================
+    # NOVA TAB 13 - FICHAS TÉCNICAS (CUSTOS MANUAIS)
+    # ============================================================
+    elif st.session_state.active_tab == "📋 Fichas Técnicas":
+        st.header("📋 Fichas Técnicas e Custos de Produção")
+        st.caption("Gestão de custos para produtos comprados a granel (Café, Bebidas espirituosas, etc.)")
+
+        arquivo_fichas = Path('fichas_tecnicas.csv')
+        
+        # Carregar dados existentes
+        if arquivo_fichas.exists():
+            df_fichas = pd.read_csv(arquivo_fichas)
+        else:
+            df_fichas = pd.DataFrame(columns=[
+                'Produto_POS', 'Preco_Compra', 'Qtd_Compra', 'Unidade_Compra', 
+                'Qtd_Dose', 'Unidade_Dose', 'Custo_Dose'
+            ])
+
+        # Form para adicionar/editar
+        with st.expander("➕ Adicionar/Editar Ficha Técnica (Produto Simples)", expanded=df_fichas.empty):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Obter lista de produtos do POS para sugestão
+                lista_produtos_pos = sorted(df['Produto'].unique())
+                nome_prod = st.selectbox("Produto no POS", options=lista_produtos_pos)
+            
+            with col2:
+                preco_compra = st.number_input("Preço de Compra (€)", min_value=0.01, value=40.0, step=0.50)
+                unid_compra = st.selectbox("Unidade de Compra", options=['Kg', 'Litro', 'Unidade', 'Gramas', 'cl'])
+            
+            with col3:
+                # Definir quantidade base de compra (ex: 1kg = 1000g)
+                if unid_compra == 'Kg': qtd_base = 1000; unid_dose_sug = 'Gramas'
+                elif unid_compra == 'Litro': qtd_base = 100; unid_dose_sug = 'cl'
+                else: qtd_base = 1; unid_dose_sug = unid_compra
+                
+                qtd_compra = st.number_input(f"Quantidade na Compra (em {unid_dose_sug})", min_value=1.0, value=float(qtd_base))
+            
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                qtd_dose = st.number_input(f"Quantidade por Dose/Serviço ({unid_dose_sug})", min_value=0.01, value=8.0 if unid_dose_sug == 'Gramas' else 3.0)
+            
+            # Cálculo em tempo real
+            custo_calculado = (preco_compra / qtd_compra) * qtd_dose
+            
+            with col5:
+                st.metric("Custo por Dose", f"{custo_calculado:.3f}€")
+            
+            with col6:
+                st.write("<br>", unsafe_allow_html=True)
+                if st.button("💾 Guardar Ficha Técnica", use_container_width=True, type="primary"):
+                    nova_ficha = pd.DataFrame([{
+                        'Produto_POS': nome_prod,
+                        'Preco_Compra': preco_compra,
+                        'Qtd_Compra': qtd_compra,
+                        'Unidade_Compra': unid_compra,
+                        'Qtd_Dose': qtd_dose,
+                        'Unidade_Dose': unid_dose_sug,
+                        'Custo_Dose': round(custo_calculado, 4)
+                    }])
+                    
+                    if not df_fichas.empty:
+                        df_fichas = df_fichas[df_fichas['Produto_POS'] != nome_prod]
+                        df_final = pd.concat([df_fichas, nova_ficha], ignore_index=True)
+                    else:
+                        df_final = nova_ficha
+                        
+                    df_final.to_csv(arquivo_fichas, index=False)
+                    st.success(f"✅ Ficha técnica de '{nome_prod}' guardada!")
+                    st.rerun()
+
+        # ============================================================
+        # NOVO: PRODUTOS COMPOSTOS (COCKTAILS)
+        # ============================================================
+        with st.expander("🧪 Criar Produto Composto / Cocktail (Ex: Martini c/ Cerveja)", expanded=False):
+            st.caption("Use esta secção para produtos feitos de vários ingredientes (ex: Kir = Vinho + Cassis).")
+            
+            c_sel1, c_sel2 = st.columns([2, 1])
+            
+            with c_sel1:
+                # Produto final (o que é vendido)
+                prod_cocktail = st.selectbox("Produto Final (POS)", options=lista_produtos_pos, key="sel_cocktail")
+            
+            # Área de Ingredientes
+            if 'temp_ingredientes' not in st.session_state:
+                st.session_state.temp_ingredientes = []
+                
+            col_ing1, col_ing2, col_ing3 = st.columns([3, 2, 1])
+            
+            with col_ing1:
+                # Fonte de ingredientes: Produtos Novadis + Fichas Técnicas
+                # Precisamos carregar custos Novadis para mostrar aqui
+                if 'custos_ref' not in st.session_state:
+                    # Carregar Novadis (simplificado)
+                    try:
+                        # Tentar usar loader existente ou cache
+                        with st.spinner("Carregando lista de ingredientes..."):
+                            data_inicio_custos = datetime.now() - timedelta(days=180)
+                            df_novadis_raw = loader.carregar_novadis_processado(data_inicio_custos, datetime.now())
+                            if not df_novadis_raw.empty:
+                                ref_novadis = df_novadis_raw.groupby('produto_pos')['custo_unitario'].mean().reset_index()
+                                ref_novadis.columns = ['Produto', 'Custo']
+                                ref_novadis['Tipo'] = 'Novadis'
+                            else:
+                                ref_novadis = pd.DataFrame(columns=['Produto', 'Custo', 'Tipo'])
+                                
+                            # Juntar com Fichas
+                            if not df_fichas.empty:
+                                ref_fichas = df_fichas[['Produto_POS', 'Custo_Dose']].copy()
+                                ref_fichas.columns = ['Produto', 'Custo']
+                                ref_fichas['Tipo'] = 'Ficha'
+                                df_ref = pd.concat([ref_novadis, ref_fichas], ignore_index=True)
+                            else:
+                                df_ref = ref_novadis
+                                
+                            st.session_state.custos_ref = df_ref.sort_values('Produto')
+                    except Exception as e:
+                        st.session_state.custos_ref = pd.DataFrame(columns=['Produto', 'Custo', 'Tipo'])
+                
+                lista_ingredientes = st.session_state.custos_ref['Produto'].tolist()
+                sel_ingrediente = st.selectbox("Adicionar Ingrediente", options=lista_ingredientes, key="sel_ing")
+                
+                # Buscar custo unitário
+                custo_unit_ing = 0.0
+                tipo_ing = ""
+                if not st.session_state.custos_ref.empty:
+                    row_ing = st.session_state.custos_ref[st.session_state.custos_ref['Produto'] == sel_ingrediente]
+                    if not row_ing.empty:
+                        custo_unit_ing = row_ing.iloc[0]['Custo']
+                        tipo_ing = row_ing.iloc[0]['Tipo']
+
+            with col_ing2:
+                label_qtd = "Quantidade (Doses/Unid)"
+                if tipo_ing == 'Novadis':
+                    label_qtd = "Qtd (baseada na unidade de venda)"
+                elif tipo_ing == 'Ficha':
+                    label_qtd = "Qtd (doses da ficha técnica)"
+                    
+                qtd_ing = st.number_input(label_qtd, min_value=0.1, value=1.0, step=0.1, key="qtd_ing")
+                st.caption(f"Custo ref: {custo_unit_ing:.3f}€ ({tipo_ing})")
+
+            with col_ing3:
+                st.write("<br>", unsafe_allow_html=True)
+                if st.button("➕ Add", use_container_width=True):
+                    custo_total_ing = custo_unit_ing * qtd_ing
+                    st.session_state.temp_ingredientes.append({
+                        'Ingrediente': sel_ingrediente,
+                        'Qtd': qtd_ing,
+                        'Custo_Unit': custo_unit_ing,
+                        'Custo_Total': custo_total_ing,
+                        'Tipo': tipo_ing
+                    })
+
+            # Tabela de ingredientes atuais
+            if st.session_state.temp_ingredientes:
+                df_ing_temp = pd.DataFrame(st.session_state.temp_ingredientes)
+                st.dataframe(df_ing_temp, use_container_width=True, hide_index=True)
+                
+                custo_final_cocktail = df_ing_temp['Custo_Total'].sum()
+                
+                col_save1, col_save2 = st.columns([3, 1])
+                with col_save1:
+                    st.markdown(f"#### Custo Final: **{custo_final_cocktail:.3f}€**")
+                
+                with col_save2:
+                    if st.button("💾 Guardar Composto", type="primary", use_container_width=True):
+                        # Salvar como uma ficha técnica normal (com o valor calculado)
+                        # Opcional: Salvar a receita detalhada em outro CSV se quiser editar depois
+                        
+                        nova_ficha_composta = pd.DataFrame([{
+                            'Produto_POS': prod_cocktail,
+                            'Preco_Compra': custo_final_cocktail, # Hack: Preço Compra = Custo Final
+                            'Qtd_Compra': 1,
+                            'Unidade_Compra': 'Unid',
+                            'Qtd_Dose': 1,
+                            'Unidade_Dose': 'Unid',
+                            'Custo_Dose': round(custo_final_cocktail, 4)
+                        }])
+                        
+                        if not df_fichas.empty:
+                            df_fichas = df_fichas[df_fichas['Produto_POS'] != prod_cocktail]
+                            df_final = pd.concat([df_fichas, nova_ficha_composta], ignore_index=True)
+                        else:
+                            df_final = nova_ficha_composta
+                            
+                        df_final.to_csv(arquivo_fichas, index=False)
+                        st.session_state.temp_ingredientes = [] # Limpar
+                        st.success(f"✅ Cocktail '{prod_cocktail}' guardado com custo {custo_final_cocktail:.3f}€")
+                        st.rerun()
+                
+                if st.button("Limpar Lista"):
+                    st.session_state.temp_ingredientes = []
+                    st.rerun()
+
+        # Mostrar Tabela de Fichas Técnicas
+        if not df_fichas.empty:
+            st.markdown("### 📋 Fichas Ativas")
+            
+            # Formatação para exibição
+            df_show = df_fichas.copy()
+            df_show['Custo_Dose'] = df_show['Custo_Dose'].apply(lambda x: f"{x:.3f}€")
+            df_show['Preco_Compra'] = df_show['Preco_Compra'].apply(lambda x: f"{x:.2f}€")
+            
+            # Adicionar coluna de ação (remover)
+            for idx, row in df_fichas.iterrows():
+                c1, c2, c3, c4, c5 = st.columns([3, 2, 2, 2, 1])
+                c1.write(f"**{row['Produto_POS']}**")
+                c2.write(f"{row['Preco_Compra']}€ / {row['Qtd_Compra']}{row['Unidade_Dose']}")
+                c3.write(f"Dose: {row['Qtd_Dose']}{row['Unidade_Dose']}")
+                c4.write(f"Custo: **{row['Custo_Dose']:.3f}€**")
+                if c5.button("🗑️", key=f"del_ficha_{idx}"):
+                    df_final = df_fichas.drop(idx)
+                    df_final.to_csv(arquivo_fichas, index=False)
+                    st.rerun()
+        else:
+            st.info("ℹ️ Nenhuma ficha técnica configurada. Adicione uma acima (ex: Café).")
+
+    # ============================================================
+    # NOVA TAB 14 - MARGENS DE LUCRO (POS vs NOVADIS)
+    # ============================================================
+    elif st.session_state.active_tab == "💰 Margens de Lucro":
+        st.header("💰 Análise de Margens Reais (POS vs Novadis)")
+        st.caption("Cruzamento de vendas do POS-Café com custos reais das encomendas Novadis")
+
+        # 1. Preparar Dados de Vendas (POS-Café)
+        df_pos = df_filtrado[df_filtrado['Fonte'] == 'POS-Café'].copy()
+        
+        if df_pos.empty:
+            st.warning("⚠️ Sem dados de vendas do POS-Café para o período selecionado.")
+        else:
+            # Agrupar vendas por produto
+            vendas_resumo = df_pos.groupby(['Produto', 'Categoria']).agg({
+                'Qtd': 'sum',
+                'Valor': 'sum'
+            }).reset_index()
+            
+            # Calcular Preço Médio de Venda (PVP Médio)
+            vendas_resumo['PVP_Medio'] = vendas_resumo['Valor'] / vendas_resumo['Qtd']
+
+            # 2. Preparar Dados de Custos (Novadis)
+            # Carregar dados Novadis (usar todo o histórico disponível para ter melhor referência de preço)
+            # ou usar apenas o período selecionado se preferir custos "da época"
+            with st.spinner("Calculando custos médios da Novadis..."):
+                # Carregar histórico expandido (últimos 6 meses) para garantir que temos preços
+                # mesmo que não tenhamos comprado neste mês específico
+                data_inicio_custos = datetime.now() - timedelta(days=180)
+                df_novadis_custos = loader.carregar_novadis_processado(data_inicio_custos, datetime.now())
+                
+            if not df_novadis_custos.empty:
+                custos_novadis = df_novadis_custos.groupby('produto_pos')['custo_unitario'].mean().reset_index()
+                custos_novadis.columns = ['Produto', 'Custo_Novadis']
+            else:
+                custos_novadis = pd.DataFrame(columns=['Produto', 'Custo_Novadis'])
+
+            # 3. Carregar Custos Manuais (CSV)
+            arquivo_custos_manuais = Path('custos_margens_reais.csv')
+            
+            if arquivo_custos_manuais.exists():
+                custos_manuais = pd.read_csv(arquivo_custos_manuais)
+            else:
+                custos_manuais = pd.DataFrame(columns=['Produto', 'Custo_Manual'])
+
+            # 3.b Carregar Fichas Técnicas (Custos por Dose)
+            arquivo_fichas = Path('fichas_tecnicas.csv')
+            if arquivo_fichas.exists():
+                df_fichas_custos = pd.read_csv(arquivo_fichas)
+                custos_fichas = df_fichas_custos[['Produto_POS', 'Custo_Dose']].copy()
+                custos_fichas.columns = ['Produto', 'Custo_Ficha']
+            else:
+                custos_fichas = pd.DataFrame(columns=['Produto', 'Custo_Ficha'])
+
+            # 4. GESTÃO DE MAPEAMENTO (POS <-> NOVADIS)
+            # Permite ao utilizador ligar produtos com nomes diferentes E quantidades diferentes
+            arquivo_map = Path('mapeamento_produtos.csv')
+            if arquivo_map.exists():
+                df_map = pd.read_csv(arquivo_map)
+                # Garantir compatibilidade com versões anteriores (adicionar coluna Multiplicador se não existir)
+                if 'Multiplicador' not in df_map.columns:
+                    df_map['Multiplicador'] = 1.0
+            else:
+                df_map = pd.DataFrame(columns=['Produto_POS', 'Produto_Custo', 'Multiplicador'])
+
+            # Aplicar mapeamento aos custos da Novadis
+            if not df_map.empty and not custos_novadis.empty:
+                # Criar dicionário de custos: Nome_Custo -> Valor
+                dict_custos = dict(zip(custos_novadis['Produto'], custos_novadis['Custo_Novadis']))
+                
+                novos_custos_map = []
+                for _, row in df_map.iterrows():
+                    prod_pos = row['Produto_POS']
+                    prod_custo = row['Produto_Custo']
+                    multiplicador = row.get('Multiplicador', 1.0)
+                    
+                    if prod_custo in dict_custos:
+                        valor_base = dict_custos[prod_custo]
+                        valor_final = valor_base * multiplicador
+                        novos_custos_map.append({'Produto': prod_pos, 'Custo_Novadis': valor_final})
+                
+                # Adicionar os custos mapeados ao dataframe de custos
+                if novos_custos_map:
+                    df_novos = pd.DataFrame(novos_custos_map)
+                    custos_novadis = pd.concat([custos_novadis, df_novos], ignore_index=True)
+                    # Remover duplicados mantendo o último (caso haja conflito)
+                    custos_novadis = custos_novadis.drop_duplicates(subset=['Produto'], keep='last')
+
+            # 5. Cruzar Dados (Merge)
+            df_margens = pd.merge(vendas_resumo, custos_novadis, on='Produto', how='left')
+            df_margens = pd.merge(df_margens, custos_manuais, on='Produto', how='left')
+            df_margens = pd.merge(df_margens, custos_fichas, on='Produto', how='left')
+
+            # Determinar Custo Final (Prioridade: Ficha Técnica > Manual > Novadis)
+            df_margens['Custo_Final'] = df_margens['Custo_Ficha'].combine_first(df_margens['Custo_Manual']).combine_first(df_margens['Custo_Novadis'])
+            
+            # Identificar produtos sem custo e produtos de custo sem venda
+            produtos_sem_custo = df_margens[df_margens['Custo_Final'].isna()].copy()
+            
+            # --- ÁREA DE ASSOCIAÇÃO DE PRODUTOS ---
+            with st.expander("🔗 Associar Produtos (Nomes Diferentes ou Quantidades)", expanded=False):
+                st.info("Use esta secção para ligar produtos com nomes diferentes ou capacidades diferentes (ex: Caneca = 3x Imperial).")
+                
+                col_assoc1, col_assoc2, col_assoc3, col_assoc4 = st.columns([2, 2, 1, 1])
+                
+                # Lista de produtos POS sem custo (candidatos a mapeamento)
+                lista_pos = sorted(df_pos['Produto'].unique())
+                # Lista de produtos Novadis (fonte de custo)
+                lista_custos = sorted(custos_novadis['Produto'].unique())
+                
+                with col_assoc1:
+                    sel_pos = st.selectbox("Produto no POS (Venda)", options=lista_pos, key="sel_map_pos")
+                
+                with col_assoc2:
+                    sel_custo = st.selectbox("Produto Base (Custo)", options=lista_custos, key="sel_map_custo")
+                
+                with col_assoc3:
+                    multiplicador_input = st.number_input("Multiplicador", min_value=0.1, value=1.0, step=0.1, help="Ex: Se Caneca leva 3 imperiais, coloque 3.0")
+                
+                with col_assoc4:
+                    st.write("<br>", unsafe_allow_html=True)
+                    if st.button("➕ Associar", use_container_width=True):
+                        # Adicionar ao CSV
+                        novo_map = pd.DataFrame([{
+                            'Produto_POS': sel_pos, 
+                            'Produto_Custo': sel_custo,
+                            'Multiplicador': multiplicador_input
+                        }])
+                        
+                        if arquivo_map.exists():
+                            df_existente = pd.read_csv(arquivo_map)
+                            if 'Multiplicador' not in df_existente.columns:
+                                df_existente['Multiplicador'] = 1.0
+                                
+                            # Remover se já existir mapeamento para este produto POS
+                            df_existente = df_existente[df_existente['Produto_POS'] != sel_pos]
+                            df_final = pd.concat([df_existente, novo_map], ignore_index=True)
+                        else:
+                            df_final = novo_map
+                        
+                        df_final.to_csv(arquivo_map, index=False)
+                        st.success(f"✅ Associado: {sel_pos} = {multiplicador_input}x {sel_custo}")
+                        st.rerun()
+
+                # Mostrar associações existentes
+                if arquivo_map.exists():
+                    df_map_show = pd.read_csv(arquivo_map)
+                    if not df_map_show.empty:
+                        # Garantir coluna multiplicador
+                        if 'Multiplicador' not in df_map_show.columns:
+                            df_map_show['Multiplicador'] = 1.0
+
+                        st.markdown("##### Associações Ativas:")
+                        
+                        # Adicionar botão de remover para cada linha
+                        for idx, row in df_map_show.iterrows():
+                            c1, c2, c3, c4 = st.columns([3, 3, 1, 1])
+                            c1.text(f"POS: {row['Produto_POS']}")
+                            c2.text(f"Base: {row['Produto_Custo']}")
+                            c3.text(f"x {row['Multiplicador']}")
+                            if c4.button("🗑️", key=f"del_map_{idx}"):
+                                df_map_show = df_map_show.drop(idx)
+                                df_map_show.to_csv(arquivo_map, index=False)
+                                st.rerun()
+
+            # --- ÁREA DE INPUT MANUAL ---
+            if not produtos_sem_custo.empty:
+                st.markdown("### ⚠️ Produtos sem Custo Definido")
+                st.warning(f"Existem **{len(produtos_sem_custo)}** produtos vendidos sem custo associado (não encontrados na Novadis).")
+                
+                with st.expander("✏️ Inserir Custos Manuais", expanded=True):
+                    st.caption("Edite a coluna 'Novo Custo' e clique em Guardar.")
+                    
+                    # Preparar dataframe para edição
+                    df_editor = produtos_sem_custo[['Produto', 'Categoria', 'Qtd', 'PVP_Medio']].copy()
+                    df_editor['Novo_Custo'] = 0.0
+                    
+                    # Editor
+                    df_editado = st.data_editor(
+                        df_editor,
+                        column_config={
+                            "Produto": st.column_config.TextColumn("Produto", disabled=True),
+                            "Categoria": st.column_config.TextColumn("Categoria", disabled=True),
+                            "Qtd": st.column_config.NumberColumn("Qtd Vendida", disabled=True),
+                            "PVP_Medio": st.column_config.NumberColumn("PVP Médio", format="%.2f€", disabled=True),
+                            "Novo_Custo": st.column_config.NumberColumn("Novo Custo Unit. (€)", min_value=0.0, format="%.2f€", required=True)
+                        },
+                        hide_index=True,
+                        use_container_width=True,
+                        key="editor_custos_faltantes"
+                    )
+                    
+                    if st.button("💾 Guardar Custos Manuais", type="primary"):
+                        # Filtrar apenas os que foram editados (Custo > 0)
+                        novos_custos = df_editado[df_editado['Novo_Custo'] > 0][['Produto', 'Novo_Custo']]
+                        
+                        if not novos_custos.empty:
+                            novos_custos.columns = ['Produto', 'Custo_Manual']
+                            
+                            # Carregar existente, atualizar/adicionar e salvar
+                            if arquivo_custos_manuais.exists():
+                                df_existente = pd.read_csv(arquivo_custos_manuais)
+                                # Remover duplicados (manter novo)
+                                df_existente = df_existente[~df_existente['Produto'].isin(novos_custos['Produto'])]
+                                df_final = pd.concat([df_existente, novos_custos], ignore_index=True)
+                            else:
+                                df_final = novos_custos
+                                
+                            df_final.to_csv(arquivo_custos_manuais, index=False)
+                            st.success(f"✅ {len(novos_custos)} custos atualizados! A página será recarregada.")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Nenhum custo inserido (valores > 0).")
+
+            # --- ANÁLISE DE MARGENS ---
+            st.markdown("---")
+            st.subheader("📊 Relatório de Margens e Lucro")
+            
+            # Calcular Margens para produtos com custo
+            df_analise = df_margens[df_margens['Custo_Final'].notna()].copy()
+            
+            if df_analise.empty:
+                st.info("Aguardando inserção de custos para gerar análise.")
+            else:
+                df_analise['Custo_Total'] = df_analise['Custo_Final'] * df_analise['Qtd']
+                df_analise['Lucro_Bruto'] = df_analise['Valor'] - df_analise['Custo_Total']
+                df_analise['Margem_Pct'] = (df_analise['Lucro_Bruto'] / df_analise['Valor']) * 100
+                # Garantir que Margem_Pct é numérico para evitar erros de arredondamento
+                df_analise['Margem_Pct'] = pd.to_numeric(df_analise['Margem_Pct'], errors='coerce').fillna(0)
+                
+                # KPIs Gerais
+                col1, col2, col3, col4 = st.columns(4)
+                
+                total_vendas_analisado = df_analise['Valor'].sum()
+                total_custo_analisado = df_analise['Custo_Total'].sum()
+                lucro_total = total_vendas_analisado - total_custo_analisado
+                margem_media = (lucro_total / total_vendas_analisado) * 100
+                
+                with col1:
+                    st.metric("Vendas (Analisadas)", formatar_moeda(total_vendas_analisado))
+                with col2:
+                    st.metric("Custos (Produtos)", formatar_moeda(total_custo_analisado))
+                with col3:
+                    st.metric("Lucro Bruto Real", formatar_moeda(lucro_total))
+                with col4:
+                    st.metric("Margem Global", f"{margem_media:.1f}%")
+                
+                # Visualizações
+                col_g1, col_g2 = st.columns(2)
+                
+                with col_g1:
+                    # Top Produtos por Lucro
+                    top_lucro = df_analise.sort_values('Lucro_Bruto', ascending=False).head(10)
+                    # Arredondar para evitar 13 casas decimais
+                    top_lucro['Margem_Pct'] = top_lucro['Margem_Pct'].round(0)
+
+                    fig_lucro = px.bar(
+                        top_lucro,
+                        x='Lucro_Bruto',
+                        y='Produto',
+                        orientation='h',
+                        title='Top 10 Produtos - Maior Lucro (€)',
+                        text=[formatar_moeda(v) for v in top_lucro['Lucro_Bruto']],
+                        color='Margem_Pct',
+                        color_continuous_scale='Viridis'
+                    )
+                    fig_lucro.update_layout(yaxis={'categoryorder': 'total ascending'})
+                    st.plotly_chart(fig_lucro, use_container_width=True)
+                    
+                with col_g2:
+                    # Margens Baixas (Alerta)
+                    margens_baixas = df_analise[df_analise['Margem_Pct'] < 50].sort_values('Margem_Pct')
+                    if not margens_baixas.empty:
+                        # Preparar view arredondada
+                        mb_view = margens_baixas.head(10).copy()
+                        mb_view['Margem_Pct'] = mb_view['Margem_Pct'].round(0)
+                        
+                        fig_alert = px.bar(
+                            mb_view,
+                            x='Margem_Pct',
+                            y='Produto',
+                            orientation='h',
+                            title='⚠️ Produtos com Margem < 50%',
+                            text=[f"{v:.0f}%" for v in mb_view['Margem_Pct']],
+                            color='Margem_Pct',
+                            color_continuous_scale='RdYlGn',
+                            range_color=[0, 80]
+                        )
+                        fig_alert.update_layout(yaxis={'categoryorder': 'total descending'})
+                        st.plotly_chart(fig_alert, use_container_width=True)
+                    else:
+                        st.success("✅ Todos os produtos analisados têm margem superior a 50%!")
+
+                # Tabela Detalhada
+                st.subheader("📋 Detalhe por Produto")
+                
+                # Filtros
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    cat_filter = st.multiselect("Filtrar Categoria", options=sorted(df_analise['Categoria'].unique()))
+                with col_f2:
+                    search_prod = st.text_input("Pesquisar Produto")
+                    
+                df_table = df_analise.copy()
+                if cat_filter:
+                    df_table = df_table[df_table['Categoria'].isin(cat_filter)]
+                if search_prod:
+                    df_table = df_table[df_table['Produto'].str.contains(search_prod, case=False)]
+                
+                # Formatar e Mostrar
+                df_display = df_table[[
+                    'Produto', 'Categoria', 'Qtd', 'PVP_Medio', 
+                    'Custo_Final', 'Valor', 'Lucro_Bruto', 'Margem_Pct'
+                ]].sort_values('Lucro_Bruto', ascending=False)
+                
+                df_display.columns = [
+                    'Produto', 'Categoria', 'Qtd', 'PVP Médio', 
+                    'Custo Unit.', 'Vendas Total', 'Lucro', 'Margem %'
+                ]
+                
+                # Configuração da tabela
+                st.dataframe(
+                    df_display,
+                    column_config={
+                        "PVP Médio": st.column_config.NumberColumn(format="%.2f€"),
+                        "Custo Unit.": st.column_config.NumberColumn(format="%.2f€"),
+                        "Vendas Total": st.column_config.NumberColumn(format="%.0f€"),
+                        "Lucro": st.column_config.NumberColumn(format="%.0f€"),
+                        "Margem %": st.column_config.ProgressColumn(
+                            format="%.1f%%",
+                            min_value=0,
+                            max_value=100,
+                        ),
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+                
+                # Botão para Editar Custos Existentes (Override)
+                with st.expander("🛠️ Ajustar Custos Existentes (Override)"):
+                    st.write("Se o custo automático da Novadis estiver incorreto, você pode forçar um valor manual aqui.")
+                    
+                    df_override = df_analise[['Produto', 'Custo_Final']].copy()
+                    df_override.columns = ['Produto', 'Custo_Atual']
+                    df_override['Novo_Custo_Manual'] = 0.0
+                    
+                    df_override_edit = st.data_editor(
+                        df_override,
+                        column_config={
+                            "Produto": st.column_config.TextColumn(disabled=True),
+                            "Custo_Atual": st.column_config.NumberColumn(format="%.2f€", disabled=True),
+                            "Novo_Custo_Manual": st.column_config.NumberColumn("Novo Custo (€)", min_value=0.0, format="%.2f€")
+                        },
+                        hide_index=True,
+                        key="override_custos"
+                    )
+                    
+                    if st.button("💾 Atualizar Custos Manuais"):
+                        novos_overrides = df_override_edit[df_override_edit['Novo_Custo_Manual'] > 0][['Produto', 'Novo_Custo_Manual']]
+                        if not novos_overrides.empty:
+                            novos_overrides.columns = ['Produto', 'Custo_Manual']
+                            
+                            if arquivo_custos_manuais.exists():
+                                df_existente = pd.read_csv(arquivo_custos_manuais)
+                                df_existente = df_existente[~df_existente['Produto'].isin(novos_overrides['Produto'])]
+                                df_final = pd.concat([df_existente, novos_overrides], ignore_index=True)
+                            else:
+                                df_final = novos_overrides
+                                
+                            df_final.to_csv(arquivo_custos_manuais, index=False)
+                            st.success("✅ Custos atualizados!")
+                            st.rerun()
 
 
 if __name__ == '__main__':

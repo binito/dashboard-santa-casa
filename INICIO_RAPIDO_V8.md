@@ -65,7 +65,7 @@ V8 (MariaDB):
 ### **1. MariaDB está funcionando?**
 
 ```bash
-mysql -u root -p'cathie' dashboard -e "SELECT COUNT(*) FROM dados_dashboard;"
+mysql -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard -e "SELECT COUNT(*) FROM dados_dashboard;"
 ```
 
 **Esperado:** Deve retornar ~3,992 registos

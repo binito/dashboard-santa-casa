@@ -263,7 +263,7 @@ Os dados são carregados automaticamente para o MariaDB via **cron**:
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'cathie',
+    'password': 'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo',
     'database': 'dashboard'
 }
 ```
@@ -330,10 +330,10 @@ loader = DataLoaderV8(usar_despesify=True)
 
 ```bash
 # Backup completo
-mysqldump -u root -p'cathie' dashboard > backup_dashboard_$(date +%Y%m%d).sql
+mysqldump -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard > backup_dashboard_$(date +%Y%m%d).sql
 
 # Restaurar
-mysql -u root -p'cathie' dashboard < backup_dashboard_20251210.sql
+mysql -u root -p'ppVlU3qbJcZaUeaZWpDlOo14Msmrdkpo' dashboard < backup_dashboard_20251210.sql
 ```
 
 ### **8. V8 consome mais memória?**

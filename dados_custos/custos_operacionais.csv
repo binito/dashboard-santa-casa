@@ -1,16 +1,9 @@
 Categoria,Subcategoria,Valor_Mensal,Tipo,Notas
 Instalações,Renda,500.0,Fixo,Renda do espaço comercial
-RH,Ordenado Funcionário,990.0,Fixo,Salário base mensal
+RH,Ordenado Funcionário,1023.35,Fixo,Salário base mensal
 RH,Segurança Social,352.71,Fixo,23.75% do salário (1000 x 23.75%)
-RH,Subsídio Alimentação,0.0,Fixo,6€/dia x 20 dias úteis
 Serviços,Contabilista,175.0,Fixo,Mensalidade contabilidade
-Serviços,Eletricidade,150.0,Variável,Média mensal estimada
 Serviços,Água,60.0,Variável,Média mensal estimada
 Serviços,Internet/Telefone,37.0,Fixo,Mensalidade comunicações
-Manutenção,Equipamentos,20.0,Variável,Manutenção e reparações
-Manutenção,Limpeza,200.0,Variável,Produtos de limpeza
-Fornecimentos,Descartáveis,80.0,Variável,Copos papel guardanapos etc
-Fornecimentos,Gás,0.0,Variável,Botijas de gás
-Outros,Seguros,10.0,Fixo,Seguro do estabelecimento
-Outros,Licenças,10.0,Fixo,Taxas e licenças (média mensal)
-Outros,Diversos,10.0,Variável,Despesas várias
+Manutenção,Equipamentos,20.0,Fixo,Manutenção e reparações
+Manutenção,Limpeza,240.0,Fixo,Produtos de limpeza
