@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Café Martins Cockpit</title>
+    <link rel="stylesheet" href="/static/styles.css?v=signal-ops-6" />
+  </head>
+  <body>
+    <section id="loginView" class="login-view hidden">
+      <div class="login-shell">
+        <div class="brand-mark">CM</div>
+        <h1>Café Martins</h1>
+        <p>Dashboard operacional e rentabilidade</p>
+        <form id="loginForm" class="login-card">
+          <label>
+            Utilizador
+            <input id="username" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <input id="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">Entrar</button>
+          <span id="loginError" class="form-error"></span>
+        </form>
+      </div>
+    </section>
+
+    <main id="appView" class="app hidden">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <div class="brand-card">
+            <div class="brand-pill">CM</div>
+            <div>
+              <strong>Café Martins</strong>
+              <span>Cockpit web</span>
+            </div>
+          </div>
+          <nav class="nav-list">
+            <button class="active" data-view="cockpit">Cockpit</button>
+            <button data-view="sales">Comercial</button>
+            <button data-view="margin">Rentabilidade</button>
+            <button data-view="ops">Operação</button>
+          </nav>
+        </div>
+
+        <div class="filter-stack">
+          <div>
+            <label class="filter-label">Período</label>
+            <div id="presetButtons" class="segmented">
+              <button data-preset="YTD" class="active">YTD</button>
+              <button data-preset="MTD">MTD</button>
+              <button data-preset="30D">30 dias</button>
+              <button data-preset="PREV_MONTH">Mês ant.</button>
+              <button data-preset="YEAR">Ano</button>
+              <button data-preset="ALL">Tudo</button>
+              <button data-preset="CUSTOM">Personalizado</button>
+            </div>
+          </div>
+
+          <details>
+            <summary>Filtros</summary>
+            <label class="filter-label">Ano</label>
+            <select id="yearSelect"></select>
+            <div class="date-grid">
+              <label>
+                <span class="filter-label">Início</span>
+                <input id="startDate" type="date" />
+              </label>
+              <label>
+                <span class="filter-label">Fim</span>
+                <input id="endDate" type="date" />
+              </label>
+            </div>
+            <label class="filter-label">Categorias</label>
+            <select id="categorySelect" multiple></select>
+            <label class="filter-label">Subcategorias</label>
+            <select id="subcategorySelect" multiple></select>
+            <label class="filter-label">Fontes</label>
+            <select id="sourceSelect" multiple></select>
+            <label class="check-line">
+              <input id="excludeSundays" type="checkbox" />
+              Segunda a sábado
+            </label>
+          </details>
+
+          <button id="resetButton" class="ghost-button">Repor filtros</button>
+          <button id="refreshButton" class="ghost-button">Atualizar dados</button>
+        </div>
+
+        <div class="user-strip">
+          <span id="userName">Sessao</span>
+          <button id="logoutButton">Sair</button>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <span id="viewEyebrow" class="eyebrow">Dashboard executivo</span>
+            <h1 id="viewTitle">Cockpit Operacional</h1>
+            <p id="periodLabel">A carregar periodo...</p>
+          </div>
+          <div class="status-card">
+            <span id="statusLabel">Estado</span>
+            <strong id="statusScore">--</strong>
+          </div>
+        </header>
+
+        <section id="cockpitView" class="view-stack" data-view-panel="cockpit">
+          <section class="kpi-grid" id="kpiGrid"></section>
+
+          <section class="decision-band">
+            <div class="section-heading">
+              <span>Decisão do mês</span>
+              <strong id="recordsLabel">-- registos</strong>
+            </div>
+            <div class="decision-grid" id="decisionGrid"></div>
+          </section>
+
+          <section class="main-grid">
+            <article class="panel health-panel">
+              <div class="panel-title">Saúde operacional</div>
+              <div class="score-line">
+                <strong id="healthScore">--</strong>
+                <span id="healthText">/ 100</span>
+              </div>
+              <div class="score-track"><span id="healthBar"></span></div>
+              <dl id="healthFacts"></dl>
+            </article>
+
+            <article class="panel chart-panel">
+              <div class="panel-title">Ritmo diário</div>
+              <div id="dailyChart" class="chart"></div>
+            </article>
+
+            <article class="panel priorities-panel">
+              <div class="panel-title">Prioridades</div>
+              <div id="priorityList"></div>
+            </article>
+          </section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Mix por fonte e categoria</div>
+              <div id="mixChart" class="chart tall"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-title">Top produtos</div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Produto</th>
+                      <th>Vendas</th>
+                      <th>Margem</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topProducts"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Maiores contributos</div>
+              <div id="upChart" class="chart compact"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Maiores quedas</div>
+              <div id="downChart" class="chart compact"></div>
+            </article>
+          </section>
+        </section>
+
+        <section id="commercialView" class="view-stack hidden" data-view-panel="sales">
+          <section id="commercialKpis" class="kpi-grid compact-grid"></section>
+          <section id="performanceGrid" class="metric-strip"></section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Distribuição por categoria</div>
+              <div id="categoryChart" class="chart tall"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Performance por fonte</div>
+              <div id="sourceChart" class="chart tall"></div>
+            </article>
+          </section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Pareto 80/20</div>
+              <div id="paretoChart" class="chart tall"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Crescimento por categoria</div>
+              <div id="growthChart" class="chart tall"></div>
+            </article>
+          </section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Sazonalidade semanal</div>
+              <div id="weekdayChart" class="chart compact"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Vendas mensais</div>
+              <div id="monthlyChart" class="chart compact"></div>
+            </article>
+          </section>
+
+          <section class="data-grid">
+            <article class="panel">
+              <div class="panel-title">Categorias</div>
+              <div id="categoryTable" class="table-wrap"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Produtos e dados detalhados</div>
+              <div id="detailsTable" class="table-wrap"></div>
+            </article>
+          </section>
+        </section>
+
+        <section id="profitabilityView" class="view-stack hidden" data-view-panel="margin">
+          <section id="profitKpis" class="kpi-grid compact-grid"></section>
+          <section class="signal-note" id="costSource"></section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Composição de custos</div>
+              <div id="costsChart" class="chart tall"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Rentabilidade por categoria</div>
+              <div id="profitCategoryChart" class="chart tall"></div>
+            </article>
+          </section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Break-even</div>
+              <div id="breakEvenChart" class="chart tall"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Margens reais POS vs custos</div>
+              <div id="realMarginChart" class="chart tall"></div>
+            </article>
+          </section>
+
+          <section id="breakEvenGrid" class="metric-strip"></section>
+
+          <section class="data-grid">
+            <article class="panel">
+              <div class="panel-title">Alertas de margem</div>
+              <div id="marginAlertTable" class="table-wrap"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Detalhe de rentabilidade</div>
+              <div id="realMarginTable" class="table-wrap"></div>
+            </article>
+          </section>
+
+          <section class="data-grid">
+            <article class="panel">
+              <div class="panel-title">Custos operacionais detalhados</div>
+              <div id="opCostsTable" class="table-wrap"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Despesas reais / Despesify</div>
+              <div id="expensesTable" class="table-wrap"></div>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">Produtos sem custo definido</div>
+            <div id="missingCostsTable" class="table-wrap"></div>
+          </section>
+
+          <section class="data-grid">
+            <article class="panel">
+              <div class="panel-title">Custos manuais e associações</div>
+              <form id="manualCostForm" class="edit-form">
+                <label>
+                  Produto sem custo
+                  <select id="manualCostProduct"></select>
+                </label>
+                <label>
+                  Custo unitário
+                  <input id="manualCostValue" type="number" min="0" step="0.001" required />
+                </label>
+                <button type="submit">Guardar custo</button>
+              </form>
+              <form id="mappingForm" class="edit-form">
+                <label>
+                  Produto POS
+                  <select id="mappingPos"></select>
+                </label>
+                <label>
+                  Produto base
+                  <select id="mappingCost"></select>
+                </label>
+                <label>
+                  Multiplicador
+                  <input id="mappingMultiplier" type="number" min="0.01" step="0.01" value="1" required />
+                </label>
+                <button type="submit">Associar</button>
+              </form>
+              <div id="mappingTable" class="table-wrap mini-table"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Editar custos operacionais estimados</div>
+              <textarea id="opCostsEditor" class="csv-editor" spellcheck="false"></textarea>
+              <button id="saveOpCostsButton" class="ghost-button inline-action">Guardar custos operacionais</button>
+            </article>
+          </section>
+        </section>
+
+        <section id="operationView" class="view-stack hidden" data-view-panel="ops">
+          <section id="operationKpis" class="kpi-grid compact-grid"></section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Jogos Santa Casa</div>
+              <div id="santaChart" class="chart tall"></div>
+              <div id="santaTable" class="table-wrap mini-table"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Forecast & encomendas</div>
+              <div id="forecastChart" class="chart tall"></div>
+              <div id="forecastTable" class="table-wrap mini-table"></div>
+            </article>
+          </section>
+
+          <section class="lower-grid">
+            <article class="panel">
+              <div class="panel-title">Encomendas Novadis</div>
+              <div id="novadisChart" class="chart compact"></div>
+              <div id="novadisTable" class="table-wrap mini-table"></div>
+              <form id="novadisUnitForm" class="edit-form compact-form">
+                <label>
+                  Produto Novadis
+                  <select id="novadisUnitProduct"></select>
+                </label>
+                <label>
+                  Unid. por caixa
+                  <input id="novadisUnitValue" type="number" min="1" step="1" required />
+                </label>
+                <button type="submit">Guardar unidades</button>
+              </form>
+            </article>
+            <article class="panel">
+              <div class="panel-title">Encomendas Delta</div>
+              <div id="deltaChart" class="chart compact"></div>
+              <div id="deltaTable" class="table-wrap mini-table"></div>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">Fichas técnicas</div>
+            <div id="fichasKpis" class="metric-strip"></div>
+            <section class="editor-grid">
+              <form id="fichaForm" class="edit-form">
+                <label>
+                  Produto POS
+                  <select id="fichaProduto"></select>
+                </label>
+                <label>
+                  Preço compra
+                  <input id="fichaPreco" type="number" min="0.01" step="0.01" required />
+                </label>
+                <label>
+                  Qtd compra
+                  <input id="fichaQtdCompra" type="number" min="0.01" step="0.01" required />
+                </label>
+                <label>
+                  Unidade compra
+                  <select id="fichaUnidadeCompra">
+                    <option>Kg</option>
+                    <option>Litro</option>
+                    <option>Unidade</option>
+                    <option>Gramas</option>
+                    <option>cl</option>
+                  </select>
+                </label>
+                <label>
+                  Qtd dose
+                  <input id="fichaQtdDose" type="number" min="0.01" step="0.01" required />
+                </label>
+                <label>
+                  Unidade dose
+                  <select id="fichaUnidadeDose">
+                    <option>Gramas</option>
+                    <option>cl</option>
+                    <option>Unidade</option>
+                    <option>Kg</option>
+                    <option>Litro</option>
+                  </select>
+                </label>
+                <button type="submit">Guardar ficha</button>
+              </form>
+
+              <form id="compositeForm" class="edit-form">
+                <label>
+                  Produto composto
+                  <select id="compositeProduto"></select>
+                </label>
+                <label>
+                  Ingrediente
+                  <select id="compositeIngredient"></select>
+                </label>
+                <label>
+                  Quantidade
+                  <input id="compositeQtd" type="number" min="0.01" step="0.01" value="1" />
+                </label>
+                <button id="addIngredientButton" type="button">Adicionar ingrediente</button>
+                <div id="ingredientList" class="ingredient-list"></div>
+                <button type="submit">Guardar composto</button>
+              </form>
+            </section>
+            <div id="fichasTable" class="table-wrap"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/assets/plotly.min.js"></script>
+    <script src="/static/app.js?v=signal-ops-6"></script>
+  </body>
+</html>

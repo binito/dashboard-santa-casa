@@ -6,7 +6,9 @@ After=network.target
 Type=simple
 User=jorge
 WorkingDirectory=/home/jorge/Documentos/Streamlit
-ExecStart=/home/jorge/Documentos/Streamlit/venv/bin/streamlit run dashboard_v10.py --server.port=8503 --server.address=0.0.0.0 --server.headless=true
+Environment=STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+Environment=STREAMLIT_CLIENT_TOOLBAR_MODE=viewer
+ExecStart=/home/jorge/Documentos/Streamlit/venv/bin/streamlit run dashboard_v10.py --server.port=8503 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false --client.toolbarMode=viewer
 Restart=always
 RestartSec=10
 StandardOutput=journal

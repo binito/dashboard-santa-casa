@@ -23,526 +23,18 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.chart import BarChart, LineChart, PieChart, Reference
 from openpyxl.utils.dataframe import dataframe_to_rows
+from ui.styles import apply_global_styles, render_login_brand
 
 # Configuração da página
 st.set_page_config(
     page_title="Dashboard v10 - Café Martins",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
-# Estilos CSS customizados
-st.markdown("""
-    <style>
-    /* Estilos profissionais */
-    .main {
-        background-color: #f8f9fa;
-    }
-
-    /* Cards de métricas */
-    .metric-card {
-        background: white;
-        color: #172026;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin: 10px 0;
-        transition: transform 0.2s;
-    }
-
-    .metric-card * {
-        color: inherit;
-    }
-
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    }
-
-    /* Título principal */
-    .main-title {
-        color: #1f77b4;
-        font-size: 2.5rem;
-        font-weight: 700;
-        text-align: center;
-        margin-bottom: 30px;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .subtitle {
-        color: #666;
-        font-size: 1.2rem;
-        text-align: center;
-        margin-bottom: 40px;
-    }
-
-    /* Badges de categoria */
-    .category-badge {
-        display: inline-block;
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-weight: 600;
-        margin: 5px;
-        color: white;
-    }
-
-    /* Separadores */
-    .section-divider {
-        margin: 30px 0;
-        border-top: 2px solid #e0e0e0;
-    }
-
-    /* Tabs customizadas - responsivas com múltiplas linhas */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        flex-wrap: wrap !important;
-        overflow-x: visible !important;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        min-height: 50px;
-        height: auto !important;
-        background-color: white;
-        border-radius: 8px 8px 0 0;
-        padding: 8px 12px;
-        font-weight: 600;
-        color: #333 !important;
-        font-size: 14px !important;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background-color: #1f77b4;
-        color: white !important;
-    }
-
-    /* Garantir que o texto das tabs é visível */
-    .stTabs button div {
-        color: inherit !important;
-    }
-
-    /* Responsividade para ecrãs pequenos */
-    @media (max-width: 1200px) {
-        .stTabs [data-baseweb="tab"] {
-            font-size: 12px !important;
-            padding: 6px 10px;
-            min-height: 45px;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .stTabs [data-baseweb="tab"] {
-            font-size: 11px !important;
-            padding: 5px 8px;
-            min-height: 40px;
-        }
-    }
-
-    /* Sidebar */
-    .css-1d391kg {
-        background-color: #f8f9fa;
-    }
-
-    /* Botões */
-    .stButton > button {
-        width: 100%;
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.3s;
-    }
-
-    .stButton > button:hover {
-        transform: scale(1.02);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-
-    /* Dataframe */
-    .dataframe {
-        border-radius: 10px;
-        overflow: hidden;
-    }
-
-    /* Loading spinner */
-    .stSpinner > div {
-        border-color: #1f77b4 !important;
-    }
-
-    /* Info boxes */
-    .info-box {
-        background: #e3f2fd;
-        color: #17324d;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 4px solid #1f77b4;
-        margin: 15px 0;
-    }
-
-    .warning-box {
-        background: #fff3e0;
-        color: #5f370e;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 4px solid #ff9800;
-        margin: 15px 0;
-    }
-
-    .success-box {
-        background: #e8f5e9;
-        color: #184d27;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 4px solid #4caf50;
-        margin: 15px 0;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-    <style>
-    :root {
-        --cm-ink: #172026;
-        --cm-muted: #667085;
-        --cm-line: #d7dde5;
-        --cm-panel: #ffffff;
-        --cm-bg: #f5f7f9;
-        --cm-green: #12805c;
-        --cm-red: #b42318;
-        --cm-blue: #1b5f8f;
-        --cm-gold: #936b10;
-    }
-
-    .main .block-container {
-        max-width: 1540px;
-        padding-top: 1.25rem;
-        padding-bottom: 3rem;
-    }
-
-    .v10-topbar {
-        border-bottom: 1px solid var(--cm-line);
-        padding: 0 0 16px 0;
-        margin-bottom: 16px;
-    }
-
-    .v10-title {
-        color: var(--cm-ink);
-        font-size: 2.1rem;
-        line-height: 1.05;
-        font-weight: 780;
-        letter-spacing: 0;
-        margin: 0;
-    }
-
-    .v10-subtitle {
-        color: var(--cm-muted);
-        font-size: 0.98rem;
-        margin-top: 6px;
-    }
-
-    .v10-chip-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
-    }
-
-    .v10-chip {
-        border: 1px solid var(--cm-line);
-        border-radius: 999px;
-        padding: 4px 10px;
-        color: #344054;
-        background: #fff;
-        font-size: 0.8rem;
-        white-space: nowrap;
-    }
-
-    .v10-kpi {
-        background: #ffffff;
-        color: var(--cm-ink);
-        border: 1px solid var(--cm-line);
-        border-top: 4px solid var(--cm-blue);
-        border-radius: 8px;
-        padding: 14px 16px 14px 16px;
-        min-height: 132px;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
-    }
-
-    .v10-kpi * {
-        color: inherit;
-    }
-
-    .v10-kpi-label {
-        color: var(--cm-muted) !important;
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        font-weight: 740;
-        letter-spacing: 0;
-        margin-bottom: 8px;
-    }
-
-    .v10-kpi-value {
-        color: var(--cm-ink) !important;
-        font-size: 1.85rem;
-        font-weight: 820;
-        line-height: 1.05;
-        margin-bottom: 8px;
-    }
-
-    .v10-kpi-delta {
-        font-size: 0.88rem;
-        font-weight: 700;
-    }
-
-    .v10-positive { color: var(--cm-green) !important; }
-    .v10-negative { color: var(--cm-red) !important; }
-    .v10-neutral { color: var(--cm-muted) !important; }
-
-    .v10-panel {
-        background: #ffffff;
-        color: var(--cm-ink);
-        border: 1px solid var(--cm-line);
-        border-radius: 8px;
-        padding: 14px 16px;
-        min-height: 100%;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
-    }
-
-    .v10-panel * {
-        color: inherit;
-    }
-
-    .v10-panel-title {
-        color: var(--cm-ink) !important;
-        font-size: 1rem;
-        font-weight: 760;
-        margin-bottom: 8px;
-    }
-
-    .v10-action {
-        border-left: 4px solid var(--cm-blue);
-        padding: 9px 10px;
-        margin: 8px 0;
-        background: #f8fbfd;
-        color: #24313a !important;
-        font-size: 0.92rem;
-    }
-
-    .v10-action-high { border-left-color: var(--cm-red); background: #fff8f7; }
-    .v10-action-medium { border-left-color: var(--cm-gold); background: #fffaf0; }
-    .v10-action-low { border-left-color: var(--cm-green); background: #f6fbf8; }
-
-    .v10-score {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-    }
-
-    .v10-score-number {
-        font-size: 2.3rem;
-        font-weight: 840;
-        color: var(--cm-ink);
-        line-height: 1;
-    }
-
-    .v10-score-label {
-        color: var(--cm-muted);
-        font-size: 0.88rem;
-    }
-
-    div[data-testid="stMetric"] {
-        background: #ffffff !important;
-        color: #172026 !important;
-        border: 1px solid #d7dde5;
-        border-top: 4px solid #1b5f8f;
-        border-radius: 8px;
-        padding: 12px 14px;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
-    }
-
-    div[data-testid="stMetric"] * {
-        color: #172026 !important;
-    }
-
-    div[data-testid="stMetric"] label,
-    div[data-testid="stMetricLabel"],
-    div[data-testid="stMetricLabel"] * {
-        color: #475467 !important;
-    }
-
-    div[data-testid="stMetricValue"],
-    div[data-testid="stMetricValue"] * {
-        color: #172026 !important;
-    }
-
-    div[data-testid="stMetricDelta"],
-    div[data-testid="stMetricDelta"] * {
-        color: #344054 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-    <style>
-    :root {
-        --cm-ink: #18222d;
-        --cm-muted: #667085;
-        --cm-line: #d8ded8;
-        --cm-panel: #ffffff;
-        --cm-bg: #f3f5f1;
-        --cm-slate: #22333b;
-        --cm-teal: #2f5d62;
-        --cm-rust: #9b5a3c;
-        --cm-gold: #b88746;
-        --cm-green: #2f7d68;
-        --cm-red: #b54740;
-    }
-
-    html, body, [data-testid="stAppViewContainer"] {
-        background: var(--cm-bg) !important;
-        color: var(--cm-ink);
-    }
-
-    section[data-testid="stSidebar"] {
-        background: #fbfaf7 !important;
-        border-right: 1px solid var(--cm-line);
-    }
-
-    .v10-shell-brand {
-        background: var(--cm-slate);
-        color: #ffffff;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 8px;
-        padding: 14px 14px 12px 14px;
-        margin: 4px 0 16px 0;
-    }
-
-    .v10-shell-brand-title {
-        color: #ffffff;
-        font-size: 1.2rem;
-        font-weight: 850;
-        line-height: 1.1;
-    }
-
-    .v10-shell-brand-subtitle {
-        color: rgba(255, 255, 255, 0.72);
-        font-size: 0.82rem;
-        margin-top: 5px;
-    }
-
-    .v10-topbar {
-        background: #fffefa;
-        color: var(--cm-ink);
-        border: 1px solid var(--cm-line);
-        border-left: 5px solid var(--cm-teal);
-        border-radius: 8px;
-        padding: 16px 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
-    }
-
-    .v10-title {
-        color: var(--cm-ink) !important;
-        font-size: 1.82rem;
-        font-weight: 850;
-    }
-
-    .v10-subtitle {
-        color: var(--cm-muted) !important;
-    }
-
-    .v10-chip {
-        background: #f4f7f4;
-        border-color: var(--cm-line);
-        color: #344054;
-        font-weight: 650;
-    }
-
-    .v10-kpi,
-    div[data-testid="stMetric"] {
-        border: 1px solid var(--cm-line) !important;
-        border-left: 4px solid var(--cm-teal) !important;
-        border-top: 0 !important;
-        background: #fffefa !important;
-        border-radius: 8px !important;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06) !important;
-    }
-
-    .v10-kpi:nth-of-type(2n) {
-        border-left-color: var(--cm-rust) !important;
-    }
-
-    .v10-kpi-label,
-    div[data-testid="stMetricLabel"],
-    div[data-testid="stMetricLabel"] * {
-        color: #667085 !important;
-        letter-spacing: 0 !important;
-    }
-
-    .v10-kpi-value,
-    div[data-testid="stMetricValue"],
-    div[data-testid="stMetricValue"] * {
-        color: var(--cm-ink) !important;
-    }
-
-    .v10-panel {
-        background: #ffffff !important;
-        border-color: var(--cm-line) !important;
-    }
-
-    .v10-module-map {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 10px;
-        margin: 6px 0 18px 0;
-    }
-
-    .v10-module {
-        background: #fffefa;
-        border: 1px solid var(--cm-line);
-        border-radius: 8px;
-        padding: 12px 13px;
-        min-height: 92px;
-    }
-
-    .v10-module-kicker {
-        color: var(--cm-rust);
-        font-size: 0.74rem;
-        font-weight: 820;
-        text-transform: uppercase;
-        letter-spacing: 0;
-        margin-bottom: 5px;
-    }
-
-    .v10-module-title {
-        color: var(--cm-ink);
-        font-size: 0.98rem;
-        font-weight: 800;
-        margin-bottom: 4px;
-    }
-
-    .v10-module-copy {
-        color: var(--cm-muted);
-        font-size: 0.84rem;
-        line-height: 1.3;
-    }
-
-    @media (max-width: 1100px) {
-        .v10-module-map {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @media (max-width: 680px) {
-        .v10-module-map {
-            grid-template-columns: 1fr;
-        }
-        .v10-title {
-            font-size: 1.7rem;
-        }
-    }
-    </style>
-""", unsafe_allow_html=True)
+# Tema visual efetivo
+apply_global_styles()
 
 
 # Funções auxiliares
@@ -560,8 +52,8 @@ def carregar_dados():
         # Garantir que carregar_delta está acessível e pré-carregar se necessário
         try:
             _ = loader.carregar_delta()
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ Não foi possível pré-carregar Delta: {e}")
         cost_manager = loader.cost_manager  # CostManagerV2 com Despesify
         return df, loader, cost_manager
 
@@ -599,6 +91,21 @@ def formatar_numero(valor):
         return f"{float(valor):,.0f}".replace(",", ".")
     except Exception:
         return "0"
+
+
+def produto_executivo_v10(nome_produto):
+    """Agrupa variações técnicas que não ajudam na leitura executiva."""
+    nome = str(nome_produto or "").strip()
+    nome_lower = nome.lower()
+
+    if nome_lower.startswith("raspadinha"):
+        return "Raspadinha"
+    if "euromilhões" in nome_lower or "euromilhoes" in nome_lower:
+        return "Euromilhões"
+    if nome_lower.startswith("lotaria instantânea") or nome_lower.startswith("lotaria instantanea"):
+        return "Lotaria Instantânea"
+
+    return nome
 
 
 def periodo_anterior_imediato(data_inicio, data_fim):
@@ -655,8 +162,8 @@ def calcular_cockpit_v10(df_filtrado, df_anterior, cost_manager, data_inicio, da
             pd.Timestamp(data_fim),
         )
         custos_ops = float(custos_ops or 0)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️ Não foi possível calcular custos operacionais no cockpit: {e}")
 
     atual["lucro_liquido"] = atual["lucro_bruto"] - custos_ops
     atual["margem_liquida"] = (atual["lucro_liquido"] / atual["total"] * 100) if atual["total"] else 0.0
@@ -738,7 +245,8 @@ def calcular_metricas_operacionais_v10(df_filtrado, loader, atual, data_inicio, 
     try:
         break_even = loader.get_analise_break_even(df_filtrado)
         break_even_diario = float(break_even.get("vendas_break_even_diaria") or 0)
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Não foi possível calcular break-even no cockpit: {e}")
         break_even_diario = 0.0
 
     if not np.isfinite(break_even_diario):
@@ -764,6 +272,133 @@ def calcular_metricas_operacionais_v10(df_filtrado, loader, atual, data_inicio, 
     }
 
 
+def calcular_metricas_decisao_v10(df_filtrado, df_completo, cost_manager, data_inicio, data_fim):
+    """Calcula métricas acionáveis para o mês em curso do período filtrado."""
+    vazio = {
+        "margem_liquida_projetada": 0.0,
+        "lucro_liquido_projetado": 0.0,
+        "vendas_mes_projetadas": 0.0,
+        "gap_objetivo_mensal": 0.0,
+        "objetivo_mensal": 0.0,
+        "objetivo_mensal_label": "mês anterior",
+        "vendas_dia_util_necessarias": 0.0,
+        "dias_uteis_restantes": 0,
+        "vendas_margem_risco": 0.0,
+        "pct_vendas_margem_risco": 0.0,
+        "impacto_margem_risco": 0.0,
+    }
+
+    if df_filtrado.empty:
+        return vazio
+
+    data_ref = pd.Timestamp(data_fim).normalize()
+    inicio_mes = data_ref.replace(day=1)
+    fim_mes = inicio_mes + pd.offsets.MonthEnd(0)
+
+    df_mes = df_filtrado[
+        (df_filtrado["Data"] >= inicio_mes) &
+        (df_filtrado["Data"] <= data_ref)
+    ].copy()
+
+    if df_mes.empty:
+        return vazio
+
+    dias_decorridos = pd.date_range(inicio_mes, data_ref, freq="D")
+    dias_operacao_decorridos = max(1, sum(1 for dia in dias_decorridos if dia.weekday() < 6))
+    dias_mes = pd.date_range(inicio_mes, fim_mes, freq="D")
+    dias_operacao_mes = max(dias_operacao_decorridos, sum(1 for dia in dias_mes if dia.weekday() < 6))
+    dias_uteis_restantes = max(0, sum(1 for dia in pd.date_range(data_ref + pd.Timedelta(days=1), fim_mes, freq="D") if dia.weekday() < 6))
+
+    vendas_mtd = float(df_mes["Valor"].sum())
+    lucro_bruto_mtd = float(df_mes["Lucro_Bruto"].sum()) if "Lucro_Bruto" in df_mes.columns else vendas_mtd
+    fator_projecao = dias_operacao_mes / dias_operacao_decorridos
+    vendas_mes_projetadas = vendas_mtd * fator_projecao
+    lucro_bruto_projetado = lucro_bruto_mtd * fator_projecao
+
+    custos_ops_mes = 0.0
+    try:
+        custos_ops_mes, _, _ = cost_manager.get_custos_operacionais_periodo(
+            inicio_mes.to_pydatetime(),
+            fim_mes.to_pydatetime(),
+        )
+        custos_ops_mes = float(custos_ops_mes or 0)
+    except Exception as e:
+        print(f"⚠️ Não foi possível projetar custos operacionais mensais: {e}")
+
+    lucro_liquido_projetado = lucro_bruto_projetado - custos_ops_mes
+    margem_liquida_projetada = (lucro_liquido_projetado / vendas_mes_projetadas * 100) if vendas_mes_projetadas else 0.0
+
+    # Objetivo mensal operacional: igualar o mês anterior com a mesma seleção implícita.
+    categorias = set(df_filtrado["Categoria"].dropna().unique()) if "Categoria" in df_filtrado.columns else set()
+    fontes = set(df_filtrado["Fonte"].dropna().unique()) if "Fonte" in df_filtrado.columns else set()
+    subcategorias = set(df_filtrado["Subcategoria"].dropna().astype(str).unique()) if "Subcategoria" in df_filtrado.columns else set()
+
+    df_scope = df_completo.copy()
+    if categorias and "Categoria" in df_scope.columns:
+        df_scope = df_scope[df_scope["Categoria"].isin(categorias)]
+    if fontes and "Fonte" in df_scope.columns:
+        df_scope = df_scope[df_scope["Fonte"].isin(fontes)]
+    if subcategorias and "Subcategoria" in df_scope.columns:
+        df_scope = df_scope[df_scope["Subcategoria"].fillna("").astype(str).isin(subcategorias)]
+
+    fim_mes_anterior = inicio_mes - pd.Timedelta(days=1)
+    inicio_mes_anterior = fim_mes_anterior.replace(day=1)
+    df_mes_anterior = df_scope[
+        (df_scope["Data"] >= inicio_mes_anterior) &
+        (df_scope["Data"] <= fim_mes_anterior)
+    ]
+    objetivo_mensal = float(df_mes_anterior["Valor"].sum()) if not df_mes_anterior.empty else 0.0
+    objetivo_mensal_label = "mês anterior"
+
+    if objetivo_mensal <= 0:
+        inicio_ano_anterior = inicio_mes - pd.DateOffset(years=1)
+        fim_ano_anterior = fim_mes - pd.DateOffset(years=1)
+        df_mes_ano_anterior = df_scope[
+            (df_scope["Data"] >= inicio_ano_anterior) &
+            (df_scope["Data"] <= fim_ano_anterior)
+        ]
+        objetivo_mensal = float(df_mes_ano_anterior["Valor"].sum()) if not df_mes_ano_anterior.empty else 0.0
+        objetivo_mensal_label = "mesmo mês ano passado"
+
+    gap_objetivo_mensal = objetivo_mensal - vendas_mtd if objetivo_mensal > 0 else 0.0
+    vendas_dia_util_necessarias = (
+        max(gap_objetivo_mensal, 0.0) / dias_uteis_restantes
+        if dias_uteis_restantes > 0 else 0.0
+    )
+
+    vendas_margem_risco = 0.0
+    impacto_margem_risco = 0.0
+    if "Abaixo_Objetivo" in df_filtrado.columns:
+        df_risco = df_filtrado[df_filtrado["Abaixo_Objetivo"].fillna(False)].copy()
+    elif {"Margem_Bruta_Pct", "Margem_Objetivo"}.issubset(df_filtrado.columns):
+        df_risco = df_filtrado[df_filtrado["Margem_Bruta_Pct"] < df_filtrado["Margem_Objetivo"]].copy()
+    else:
+        df_risco = pd.DataFrame()
+
+    if not df_risco.empty:
+        vendas_margem_risco = float(df_risco["Valor"].sum())
+        if {"Margem_Bruta_Pct", "Margem_Objetivo", "Valor"}.issubset(df_risco.columns):
+            diff_margem = (df_risco["Margem_Objetivo"] - df_risco["Margem_Bruta_Pct"]).clip(lower=0)
+            impacto_margem_risco = float((df_risco["Valor"] * diff_margem / 100).sum())
+
+    vendas_periodo = float(df_filtrado["Valor"].sum())
+    pct_vendas_margem_risco = (vendas_margem_risco / vendas_periodo * 100) if vendas_periodo else 0.0
+
+    return {
+        "margem_liquida_projetada": margem_liquida_projetada,
+        "lucro_liquido_projetado": lucro_liquido_projetado,
+        "vendas_mes_projetadas": vendas_mes_projetadas,
+        "gap_objetivo_mensal": gap_objetivo_mensal,
+        "objetivo_mensal": objetivo_mensal,
+        "objetivo_mensal_label": objetivo_mensal_label,
+        "vendas_dia_util_necessarias": vendas_dia_util_necessarias,
+        "dias_uteis_restantes": dias_uteis_restantes,
+        "vendas_margem_risco": vendas_margem_risco,
+        "pct_vendas_margem_risco": pct_vendas_margem_risco,
+        "impacto_margem_risco": impacto_margem_risco,
+    }
+
+
 def carregar_fornecedores_v10(loader, data_inicio, data_fim):
     """Carrega síntese de fornecedores para o cockpit."""
     resultado = {
@@ -781,8 +416,8 @@ def carregar_fornecedores_v10(loader, data_inicio, data_fim):
             resultado["df_novadis"] = df_novadis
             resultado["novadis_total"] = float(df_novadis["custo_total"].sum())
             resultado["novadis_pedidos"] = int(df_novadis["numero_pedido"].nunique())
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️ Não foi possível carregar Novadis para o cockpit: {e}")
 
     try:
         df_delta = loader.carregar_delta(data_inicio, data_fim)
@@ -790,8 +425,8 @@ def carregar_fornecedores_v10(loader, data_inicio, data_fim):
             resultado["df_delta"] = df_delta
             resultado["delta_total"] = float(df_delta["Total_EUR"].sum())
             resultado["delta_faturas"] = int(df_delta["Numero_Fatura"].nunique())
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"⚠️ Não foi possível carregar Delta para o cockpit: {e}")
 
     return resultado
 
@@ -819,17 +454,18 @@ def render_mapa_modulos_v10():
         ("Rentabilidade", "Custos e margem", "Custos reais, margem por categoria/produto, break-even e lucro real."),
         ("Operação", "Fornecedores e produção", "Santa Casa, Novadis, Delta, forecast, encomendas e fichas técnicas."),
     ]
-    html = ['<div class="v10-module-map">']
-    for kicker, title, copy in modulos:
-        html.append(
-            '<div class="v10-module">'
-            f'<div class="v10-module-kicker">{escape(kicker)}</div>'
-            f'<div class="v10-module-title">{escape(title)}</div>'
-            f'<div class="v10-module-copy">{escape(copy)}</div>'
-            "</div>"
-        )
-    html.append("</div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
+    with st.expander("Mapa de módulos", expanded=False):
+        html = ['<div class="v10-module-map">']
+        for kicker, title, copy in modulos:
+            html.append(
+                '<div class="v10-module">'
+                f'<div class="v10-module-kicker">{escape(kicker)}</div>'
+                f'<div class="v10-module-title">{escape(title)}</div>'
+                f'<div class="v10-module-copy">{escape(copy)}</div>'
+                "</div>"
+            )
+        html.append("</div>")
+        st.markdown("".join(html), unsafe_allow_html=True)
 
 
 def render_sidebar_brand_v10():
@@ -902,29 +538,29 @@ def acoes_cockpit_v10(cockpit, df_filtrado, fornecedores):
     acoes = []
 
     if deltas["total"] < -5:
-        acoes.append(("high", f"Vendas abaixo do período anterior ({deltas['total']:.1f}%). Rever mix diário e categorias em queda."))
+        acoes.append(("high", f"Vendas abaixo do período anterior ({deltas['total']:.1f}%). Rever mix diário e categorias em queda.", "Comercial > Comparação & Benchmarks"))
     elif deltas["total"] > 5:
-        acoes.append(("low", f"Vendas em crescimento ({deltas['total']:.1f}%). Proteger stock dos produtos que estão a puxar a subida."))
+        acoes.append(("low", f"Vendas em crescimento ({deltas['total']:.1f}%). Garantir stock nos produtos que estão a puxar a subida.", "Operação > Forecast & Encomendas"))
 
     if atual["margem_bruta"] < 35:
-        acoes.append(("high", f"Margem bruta baixa ({atual['margem_bruta']:.1f}%). Priorizar revisão de preço/custo nos produtos com maior volume."))
+        acoes.append(("high", f"Margem bruta baixa ({atual['margem_bruta']:.1f}%). Priorizar revisão de preço/custo nos produtos com maior volume.", "Rentabilidade > Margens de Lucro"))
     elif atual["margem_bruta"] < 50:
-        acoes.append(("medium", f"Margem bruta moderada ({atual['margem_bruta']:.1f}%). Há espaço para afinar custos e fichas técnicas."))
+        acoes.append(("medium", f"Margem bruta moderada ({atual['margem_bruta']:.1f}%). Há espaço para afinar custos e fichas técnicas.", "Rentabilidade > Rentabilidade & Margens"))
 
     if atual["concentracao_top5"] > 45:
-        acoes.append(("medium", f"Top 5 produtos concentram {atual['concentracao_top5']:.1f}% das vendas. Monitorizar ruturas e dependência."))
+        acoes.append(("medium", f"Top 5 produtos concentram {atual['concentracao_top5']:.1f}% das vendas. Monitorizar ruturas e dependência.", "Comercial > Dados Detalhados"))
 
     total_fornecedores = fornecedores["novadis_total"] + fornecedores["delta_total"]
     if total_fornecedores > 0 and atual["total"] > 0 and (total_fornecedores / atual["total"]) > 0.35:
-        acoes.append(("medium", f"Compras Novadis/Delta equivalem a {(total_fornecedores / atual['total'] * 100):.1f}% das vendas do período. Validar margens reais."))
+        acoes.append(("medium", f"Compras Novadis/Delta equivalem a {(total_fornecedores / atual['total'] * 100):.1f}% das vendas do período. Validar margens reais.", "Operação > Encomendas"))
 
     if "Abaixo_Objetivo" in df_filtrado.columns:
         abaixo = int(df_filtrado["Abaixo_Objetivo"].fillna(False).sum())
         if abaixo:
-            acoes.append(("medium", f"{abaixo} linhas estão abaixo da margem objetivo. Abrir Rentabilidade & Margens para detalhe."))
+            acoes.append(("medium", f"{abaixo} linhas estão abaixo da margem objetivo. Abrir Rentabilidade & Margens para detalhe.", "Rentabilidade > Rentabilidade & Margens"))
 
     if not acoes:
-        acoes.append(("low", "Indicadores principais equilibrados. Manter acompanhamento diário de vendas, margem e fornecedores."))
+        acoes.append(("low", "Indicadores principais equilibrados. Manter acompanhamento diário de vendas, margem e fornecedores.", "Painel > Performance & KPIs"))
 
     return acoes[:5]
 
@@ -936,6 +572,7 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
     atual = cockpit["atual"]
     deltas = cockpit["deltas"]
     operacionais = calcular_metricas_operacionais_v10(df_filtrado, loader, atual, data_inicio, data_fim)
+    decisao = calcular_metricas_decisao_v10(df_filtrado, df_completo, cost_manager, data_inicio, data_fim)
 
     data_max = atual["data_max"].strftime("%d/%m/%Y") if atual["data_max"] is not None else "N/D"
     topbar_html = (
@@ -966,53 +603,102 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
     with k5:
         metric_card_v10("Lucro líquido", formatar_moeda(atual["lucro_liquido"]), None, f"custos ops {formatar_moeda(atual['custos_ops'])}")
 
-    s1, s2, s3, s4 = st.columns(4)
-    with s1:
+    gap_mensal = decisao["gap_objetivo_mensal"]
+    objetivo_label = decisao["objetivo_mensal_label"]
+    if decisao["objetivo_mensal"] <= 0:
+        gap_value = "N/D"
+        gap_help = "sem histórico mensal comparável"
+    elif gap_mensal > 0:
+        gap_value = formatar_moeda(gap_mensal)
+        gap_help = f"para igualar {objetivo_label} ({formatar_moeda(decisao['objetivo_mensal'])})"
+    else:
+        gap_value = "Batido"
+        gap_help = f"{formatar_moeda(abs(gap_mensal))} acima de {objetivo_label}"
+
+    st.markdown('<div class="v10-section-label">Decisão do mês</div>', unsafe_allow_html=True)
+    d1, d2, d3, d4 = st.columns(4)
+    with d1:
         metric_card_v10(
-            "Run-rate mensal",
-            formatar_moeda(operacionais["projecao_mensal"]),
+            "Margem líquida projetada",
+            f"{decisao['margem_liquida_projetada']:.1f}%",
             None,
-            f"média atual {formatar_moeda(atual['media_diaria'])}/dia",
+            f"lucro mês {formatar_moeda(decisao['lucro_liquido_projetado'])}",
         )
-    with s2:
+    with d2:
         metric_card_v10(
-            "Cobertura break-even",
-            f"{operacionais['cobertura_break_even']:.0f}%",
+            "Gap objetivo mensal",
+            gap_value,
             None,
-            f"necessário {formatar_moeda(operacionais['break_even_diario'])}/dia",
+            gap_help,
         )
-    with s3:
+    with d3:
         metric_card_v10(
-            "Volatilidade diária",
-            f"{operacionais['volatilidade_diaria']:.1f}%",
+            "Venda/dia necessária",
+            formatar_moeda(decisao["vendas_dia_util_necessarias"]),
             None,
-            "desvio das vendas diárias",
+            f"{decisao['dias_uteis_restantes']} dias de venda restantes",
         )
-    with s4:
+    with d4:
         metric_card_v10(
-            "Alertas de margem",
-            formatar_numero(operacionais["linhas_abaixo_objetivo"]),
+            "Margem em risco",
+            formatar_moeda(decisao["vendas_margem_risco"]),
             None,
-            f"{operacionais['dias_sem_venda']} dias sem venda no período",
+            f"{decisao['pct_vendas_margem_risco']:.1f}% vendas; impacto {formatar_moeda(decisao['impacto_margem_risco'])}",
         )
+
+    with st.expander("Indicadores operacionais", expanded=False):
+        s1, s2, s3, s4 = st.columns(4)
+        with s1:
+            metric_card_v10(
+                "Run-rate mensal",
+                formatar_moeda(operacionais["projecao_mensal"]),
+                None,
+                f"média atual {formatar_moeda(atual['media_diaria'])}/dia",
+            )
+        with s2:
+            metric_card_v10(
+                "Cobertura break-even",
+                f"{operacionais['cobertura_break_even']:.0f}%",
+                None,
+                f"necessário {formatar_moeda(operacionais['break_even_diario'])}/dia",
+            )
+        with s3:
+            metric_card_v10(
+                "Volatilidade diária",
+                f"{operacionais['volatilidade_diaria']:.1f}%",
+                None,
+                "desvio das vendas diárias",
+            )
+        with s4:
+            metric_card_v10(
+                "Alertas de margem",
+                formatar_numero(operacionais["linhas_abaixo_objetivo"]),
+                None,
+                f"{operacionais['dias_sem_venda']} dias sem venda no período",
+            )
 
     st.markdown("")
 
     c1, c2, c3 = st.columns([1.1, 1.7, 1.2])
     with c1:
-        st.markdown('<div class="v10-panel">', unsafe_allow_html=True)
-        st.markdown('<div class="v10-panel-title">Saúde Operacional</div>', unsafe_allow_html=True)
-        score_html = (
-            '<div class="v10-score">'
-            f'<div class="v10-score-number">{cockpit["score"]}</div>'
-            f'<div class="v10-score-label">/ 100 · {escape(cockpit["estado"])}</div>'
-            "</div>"
+        score_pct = max(0, min(100, cockpit["score"]))
+        st.markdown(
+            (
+                '<div class="v10-panel">'
+                '<div class="v10-panel-title">Saúde Operacional</div>'
+                '<div class="v10-score">'
+                f'<div class="v10-score-number">{cockpit["score"]}</div>'
+                f'<div class="v10-score-label">/ 100 · {escape(cockpit["estado"])}</div>'
+                '</div>'
+                '<div class="v10-score-bar">'
+                f'<span style="width: {score_pct}%;"></span>'
+                '</div>'
+                f'<div class="v10-panel-note">Top 5 produtos: {atual["concentracao_top5"]:.1f}% das vendas</div>'
+                f'<div class="v10-panel-note">Margem líquida estimada: {atual["margem_liquida"]:.1f}%</div>'
+                '</div>'
+            ),
+            unsafe_allow_html=True,
         )
-        st.markdown(score_html, unsafe_allow_html=True)
-        st.progress(cockpit["score"] / 100)
-        st.caption(f"Top 5 produtos: {atual['concentracao_top5']:.1f}% das vendas")
-        st.caption(f"Margem líquida estimada: {atual['margem_liquida']:.1f}%")
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with c2:
         vendas_diarias = df_filtrado.groupby("Data")["Valor"].sum().reset_index()
@@ -1022,7 +708,7 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
             x=vendas_diarias["Data"],
             y=vendas_diarias["Valor"],
             name="Vendas",
-            marker_color="#b8c7d6",
+            marker_color="#9f9ac8",
             hovertemplate="%{x|%d/%m/%Y}<br>%{y:,.0f}€<extra></extra>",
         ))
         fig.add_trace(go.Scatter(
@@ -1030,7 +716,7 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
             y=vendas_diarias["Media_7d"],
             name="Média 7d",
             mode="lines",
-            line=dict(color="#1b5f8f", width=3),
+            line=dict(color="#FA5608", width=3),
             hovertemplate="%{x|%d/%m/%Y}<br>%{y:,.0f}€<extra></extra>",
         ))
         fig.update_layout(
@@ -1038,19 +724,32 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
             height=360,
             margin=dict(l=10, r=10, t=45, b=10),
             hovermode="x unified",
-            legend=dict(orientation="h", y=1.08, x=0.01),
+            legend=dict(orientation="h", y=1.08, x=0.01, font=dict(color="#0A0833")),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#ffffff",
+            font=dict(color="#0A0833"),
+            title_font=dict(color="#0A0833", size=16),
+            xaxis=dict(gridcolor="#EFEAF6", zerolinecolor="#E6E3EF"),
+            yaxis=dict(gridcolor="#EFEAF6", zerolinecolor="#E6E3EF"),
         )
         st.plotly_chart(fig, use_container_width=True, key="v10_cockpit_ritmo_diario")
 
     with c3:
-        st.markdown('<div class="v10-panel">', unsafe_allow_html=True)
-        st.markdown('<div class="v10-panel-title">Prioridades</div>', unsafe_allow_html=True)
-        for nivel, texto in acoes_cockpit_v10(cockpit, df_filtrado, fornecedores):
-            st.markdown(
-                f'<div class="v10-action v10-action-{nivel}">{escape(texto)}</div>',
-                unsafe_allow_html=True,
+        acoes_html = []
+        for nivel, texto, destino in acoes_cockpit_v10(cockpit, df_filtrado, fornecedores):
+            acoes_html.append(
+                f'<div class="v10-action v10-action-{nivel}">'
+                f"{escape(texto)}"
+                f'<span class="v10-action-destination">{escape(destino)}</span>'
+                "</div>"
             )
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="v10-panel">'
+            '<div class="v10-panel-title">Prioridades</div>'
+            f'{"".join(acoes_html)}'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
     col_mix, col_rank = st.columns([1.25, 1])
     with col_mix:
@@ -1060,18 +759,32 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
             path=["Fonte", "Categoria"],
             values="Valor",
             color="Valor",
-            color_continuous_scale="Blues",
+            color_continuous_scale=[
+                [0.0, "#F1EFF7"],
+                [0.55, "#8F8BBC"],
+                [1.0, "#403E68"],
+            ],
             title="Mix de vendas por fonte e categoria",
         )
-        fig_mix.update_layout(height=430, margin=dict(l=5, r=5, t=45, b=5))
+        fig_mix.update_layout(
+            height=430,
+            margin=dict(l=5, r=5, t=45, b=5),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#ffffff",
+            font=dict(color="#0A0833"),
+            title_font=dict(color="#0A0833", size=16),
+        )
         st.plotly_chart(fig_mix, use_container_width=True, key="v10_cockpit_mix")
 
     with col_rank:
-        top_produtos = df_filtrado.groupby("Produto").agg(
+        df_rank = df_filtrado.copy()
+        df_rank["Produto_Executivo"] = df_rank["Produto"].map(produto_executivo_v10)
+        top_produtos = df_rank.groupby("Produto_Executivo").agg(
             Vendas=("Valor", "sum"),
             Qtd=("Qtd", "sum"),
-            Lucro=("Lucro_Bruto", "sum") if "Lucro_Bruto" in df_filtrado.columns else ("Valor", "sum"),
+            Lucro=("Lucro_Bruto", "sum") if "Lucro_Bruto" in df_rank.columns else ("Valor", "sum"),
         ).reset_index().sort_values("Vendas", ascending=False).head(12)
+        top_produtos = top_produtos.rename(columns={"Produto_Executivo": "Produto"})
         top_produtos["Margem"] = np.where(top_produtos["Vendas"] > 0, top_produtos["Lucro"] / top_produtos["Vendas"] * 100, 0)
         st.markdown("#### Top produtos")
         st.dataframe(
@@ -1099,12 +812,16 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
         st.metric("Compras / Vendas", f"{ratio:.1f}%", formatar_moeda(total_fornecedores))
 
     if not df_anterior.empty:
-        atual_prod = df_filtrado.groupby("Produto")["Valor"].sum()
-        anterior_prod = df_anterior.groupby("Produto")["Valor"].sum()
+        df_mov_atual = df_filtrado.copy()
+        df_mov_anterior = df_anterior.copy()
+        df_mov_atual["Produto_Executivo"] = df_mov_atual["Produto"].map(produto_executivo_v10)
+        df_mov_anterior["Produto_Executivo"] = df_mov_anterior["Produto"].map(produto_executivo_v10)
+        atual_prod = df_mov_atual.groupby("Produto_Executivo")["Valor"].sum()
+        anterior_prod = df_mov_anterior.groupby("Produto_Executivo")["Valor"].sum()
         movimentos = pd.concat([atual_prod, anterior_prod], axis=1).fillna(0)
         movimentos.columns = ["Atual", "Anterior"]
         movimentos["Diferença"] = movimentos["Atual"] - movimentos["Anterior"]
-        movimentos = movimentos.reset_index()
+        movimentos = movimentos.reset_index().rename(columns={"Produto_Executivo": "Produto"})
         mov_up = movimentos.sort_values("Diferença", ascending=False).head(8)
         mov_down = movimentos.sort_values("Diferença", ascending=True).head(8)
 
@@ -1117,9 +834,18 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
                 orientation="h",
                 title="Maiores contributos positivos",
                 text=[formatar_moeda(v) for v in mov_up["Diferença"]],
-                color_discrete_sequence=["#12805c"],
+                color_discrete_sequence=["#1F8A5F"],
             )
-            fig_up.update_layout(height=360, yaxis={"categoryorder": "total ascending"}, margin=dict(l=5, r=5, t=45, b=5))
+            fig_up.update_layout(
+                height=360,
+                yaxis={"categoryorder": "total ascending", "gridcolor": "#EFEAF6", "zerolinecolor": "#E6E3EF"},
+                xaxis={"gridcolor": "#EFEAF6", "zerolinecolor": "#E6E3EF"},
+                margin=dict(l=5, r=5, t=45, b=5),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="#ffffff",
+                font=dict(color="#0A0833"),
+                title_font=dict(color="#0A0833", size=16),
+            )
             st.plotly_chart(fig_up, use_container_width=True, key="v10_cockpit_movers_up")
 
         with m2:
@@ -1130,9 +856,18 @@ def pagina_cockpit_executivo_v10(df_filtrado, df_anterior, df_completo, loader, 
                 orientation="h",
                 title="Maiores quedas",
                 text=[formatar_moeda(v) for v in mov_down["Diferença"]],
-                color_discrete_sequence=["#b42318"],
+                color_discrete_sequence=["#C43D32"],
             )
-            fig_down.update_layout(height=360, yaxis={"categoryorder": "total descending"}, margin=dict(l=5, r=5, t=45, b=5))
+            fig_down.update_layout(
+                height=360,
+                yaxis={"categoryorder": "total descending", "gridcolor": "#EFEAF6", "zerolinecolor": "#E6E3EF"},
+                xaxis={"gridcolor": "#EFEAF6", "zerolinecolor": "#E6E3EF"},
+                margin=dict(l=5, r=5, t=45, b=5),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="#ffffff",
+                font=dict(color="#0A0833"),
+                title_font=dict(color="#0A0833", size=16),
+            )
             st.plotly_chart(fig_down, use_container_width=True, key="v10_cockpit_movers_down")
 
 
@@ -2692,46 +2427,52 @@ def main():
     data_min = df['Data'].min().date()
     data_max = df['Data'].max().date()
 
-    # Botões rápidos para anos com Pills modernas
-    st.sidebar.markdown("**Atalhos de ano**")
+    def limitar_periodo(inicio, fim):
+        inicio = max(pd.Timestamp(inicio).date(), data_min)
+        fim = min(pd.Timestamp(fim).date(), data_max)
+        if inicio > fim:
+            inicio = fim
+        return inicio, fim
 
     anos_unicos = sorted(df['Data'].dt.year.unique())
-    opcoes_anos = [str(ano) for ano in anos_unicos] + ["Todos"]
-
-    # Determinar seleção padrão
-    if "selected_year" not in st.session_state:
-        st.session_state.selected_year = data_max.year  # Abre por padrão no ano mais recente disponível
-
-    if st.session_state.selected_year and str(st.session_state.selected_year) not in opcoes_anos:
-        st.session_state.selected_year = data_max.year
-
-    default_selection = str(st.session_state.selected_year) if st.session_state.selected_year else "Todos"
-
-    ano_selecionado = st.sidebar.pills(
-        "Selecionar período",
-        options=opcoes_anos,
-        default=default_selection,
-        label_visibility="collapsed"
+    opcoes_periodo = ["YTD", "MTD", "Últimos 30 dias", "Mês anterior", "Ano", "Todos", "Personalizado"]
+    periodo_preset = st.sidebar.pills(
+        "Atalho rápido",
+        options=opcoes_periodo,
+        default="YTD",
+        key="v10_period_preset",
     )
 
-    # Atualizar session_state baseado na seleção
-    if ano_selecionado == "Todos":
-        st.session_state.selected_year = None
-    else:
-        st.session_state.selected_year = int(ano_selecionado)
-
-    # Aplicar filtro de ano rápido se selecionado
-    if st.session_state.selected_year:
-        ano = st.session_state.selected_year
-        # Limitar data_fim ao máximo de dados disponíveis nesse ano
+    if periodo_preset == "YTD":
+        date_range = limitar_periodo(pd.Timestamp(f"{data_max.year}-01-01").date(), data_max)
+    elif periodo_preset == "MTD":
+        date_range = limitar_periodo(pd.Timestamp(data_max).replace(day=1).date(), data_max)
+    elif periodo_preset == "Últimos 30 dias":
+        date_range = limitar_periodo(pd.Timestamp(data_max) - pd.Timedelta(days=29), data_max)
+    elif periodo_preset == "Mês anterior":
+        ref = pd.Timestamp(data_max).replace(day=1) - pd.Timedelta(days=1)
+        inicio_mes_anterior = ref.replace(day=1).date()
+        fim_mes_anterior = ref.date()
+        date_range = limitar_periodo(inicio_mes_anterior, fim_mes_anterior)
+    elif periodo_preset == "Ano":
+        ano_selecionado = st.sidebar.pills(
+            "Ano",
+            options=[str(ano) for ano in anos_unicos],
+            default=str(data_max.year),
+            key="v10_year_preset",
+        )
+        ano = int(ano_selecionado)
         data_max_ano = df[df['Data'].dt.year == ano]['Data'].max().date()
-        date_range = (pd.Timestamp(f"{ano}-01-01").date(), data_max_ano)
+        date_range = limitar_periodo(pd.Timestamp(f"{ano}-01-01").date(), data_max_ano)
+    elif periodo_preset == "Todos":
+        date_range = (data_min, data_max)
     else:
         date_range = st.sidebar.date_input(
             "Período",
             value=(data_min, data_max),
             min_value=data_min,
-            max_value=data_max
+            max_value=data_max,
+            key="v10_custom_date_range",
         )
 
     # Extrair data_inicio e data_fim do date_range
@@ -2742,43 +2483,63 @@ def main():
     else:
         data_inicio = data_fim = date_range
 
-    # Filtro de categoria
-    st.sidebar.subheader("Categorias")
     categorias_disponiveis = sorted(df['Categoria'].unique())
-    categorias_selecionadas = st.sidebar.multiselect(
-        "Selecionar Categorias",
-        options=categorias_disponiveis,
-        default=categorias_disponiveis
-    )
-
-    # Filtro de subcategoria (dependente da categoria)
-    if categorias_selecionadas:
-        subcategorias_disponiveis = sorted(
-            df[df['Categoria'].isin(categorias_selecionadas)]['Subcategoria'].dropna().astype(str).unique()
-        )
-        subcategorias_selecionadas = st.sidebar.multiselect(
-            "Selecionar Subcategorias",
-            options=subcategorias_disponiveis,
-            default=[]
-        )
-    else:
-        subcategorias_selecionadas = []
-
-    # Filtro de fonte
-    st.sidebar.subheader("Fonte de dados")
     fontes_disponiveis = sorted(df['Fonte'].unique())
-    fontes_selecionadas = st.sidebar.multiselect(
-        "Selecionar Fontes",
-        options=fontes_disponiveis,
-        default=fontes_disponiveis
-    )
+
+    with st.sidebar.expander("Categorias e fontes", expanded=False):
+        st.caption("Sem seleção significa todas.")
+        categorias_selecionadas = st.multiselect(
+            "Categorias",
+            options=categorias_disponiveis,
+            default=[],
+            key="v10_categories_filter",
+        )
+
+        categorias_para_filtrar = categorias_selecionadas or categorias_disponiveis
+        subcategorias_disponiveis = sorted(
+            df[df['Categoria'].isin(categorias_para_filtrar)]['Subcategoria'].dropna().astype(str).unique()
+        )
+        subcategorias_selecionadas = st.multiselect(
+            "Subcategorias",
+            options=subcategorias_disponiveis,
+            default=[],
+            key="v10_subcategories_filter",
+        )
+
+        fontes_selecionadas = st.multiselect(
+            "Fontes",
+            options=fontes_disponiveis,
+            default=[],
+            key="v10_sources_filter",
+        )
+
+    categorias_para_filtrar = categorias_selecionadas or categorias_disponiveis
+    fontes_para_filtrar = fontes_selecionadas or fontes_disponiveis
 
     # Opção de Segunda a Sábado
     st.sidebar.subheader("Opções")
-    excluir_domingos = st.sidebar.checkbox("Segunda a Sábado (Excluir Domingos)", value=False)
+    excluir_domingos = st.sidebar.checkbox(
+        "Segunda a Sábado (Excluir Domingos)",
+        value=False,
+        key="v10_excluir_domingos",
+    )
 
-    # Botão de reset total
-    if st.sidebar.button("🔄 Reset Total", use_container_width=True):
+    reset_col, refresh_col = st.sidebar.columns(2)
+    if reset_col.button("Repor filtros", use_container_width=True):
+        for key in [
+            "v10_period_preset",
+            "v10_year_preset",
+            "v10_custom_date_range",
+            "v10_categories_filter",
+            "v10_subcategories_filter",
+            "v10_sources_filter",
+            "v10_excluir_domingos",
+            "selected_year",
+        ]:
+            st.session_state.pop(key, None)
+        st.rerun()
+
+    if refresh_col.button("Atualizar dados", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()
         st.rerun()
@@ -2786,9 +2547,9 @@ def main():
     # Aplicar filtros
     df_filtrado = filtrar_dados(
         df,
-        categorias_selecionadas,
+        categorias_para_filtrar,
         subcategorias_selecionadas,
-        fontes_selecionadas,
+        fontes_para_filtrar,
         data_inicio,
         data_fim,
         excluir_domingos
@@ -2801,9 +2562,9 @@ def main():
     data_inicio_periodo_anterior, data_fim_periodo_anterior = periodo_anterior_imediato(data_inicio, data_fim)
     df_periodo_anterior = filtrar_dados(
         df,
-        categorias_selecionadas,
+        categorias_para_filtrar,
         subcategorias_selecionadas,
-        fontes_selecionadas,
+        fontes_para_filtrar,
         data_inicio_periodo_anterior,
         data_fim_periodo_anterior,
         excluir_domingos
@@ -2843,9 +2604,9 @@ def main():
 
     df_anterior = filtrar_dados(
         df,
-        categorias_selecionadas,
+        categorias_para_filtrar,
         subcategorias_selecionadas,
-        fontes_selecionadas,
+        fontes_para_filtrar,
         data_inicio_anterior,
         data_fim_anterior,
         excluir_domingos
@@ -3292,9 +3053,9 @@ def main():
         # Filtrar dados do período consecutivo
         df_consecutivo = filtrar_dados(
             df,
-            categorias_selecionadas,
+            categorias_para_filtrar,
             subcategorias_selecionadas,
-            fontes_selecionadas,
+            fontes_para_filtrar,
             data_inicio_consecutivo,
             data_fim_consecutivo,
             excluir_domingos
@@ -6712,7 +6473,16 @@ if __name__ == '__main__':
 
     # Renderizar formulário de login
     try:
-        authenticator.login()
+        if not st.session_state.get("authentication_status"):
+            render_login_brand()
+        authenticator.login(
+            fields={
+                "Form name": "Entrar",
+                "Username": "Utilizador",
+                "Password": "Password",
+                "Login": "Entrar",
+            }
+        )
     except Exception as e:
         st.error(f'Erro ao processar login: {e}')
         st.stop()
@@ -6720,7 +6490,7 @@ if __name__ == '__main__':
     # Verificar status de autenticação
     if st.session_state.get("authentication_status"):
         # Usuário autenticado - adicionar logout na sidebar
-        authenticator.logout(location="sidebar", use_container_width=True)
+        authenticator.logout("Sair", location="sidebar", use_container_width=True)
         st.sidebar.write(f'Bem-vindo, **{st.session_state["name"]}**!')
 
         # Executar aplicação principal
@@ -6729,4 +6499,4 @@ if __name__ == '__main__':
     elif st.session_state.get("authentication_status") is False:
         st.error('Utilizador ou password incorretos')
     elif st.session_state.get("authentication_status") is None:
-        st.warning('Por favor, introduza as suas credenciais')
+        st.info('Introduza as suas credenciais para aceder ao dashboard.')

@@ -14,6 +14,10 @@ cd $BASE_DIR
 # Ativar ambiente virtual
 source venv/bin/activate
 
+# Configuração Streamlit para produção local
+export STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+export STREAMLIT_CLIENT_TOOLBAR_MODE=viewer
+
 # Verificar se as dependências estão instaladas
 if ! python3 -c "import streamlit" &> /dev/null; then
     echo "Instalando dependências..."
@@ -22,4 +26,4 @@ fi
 
 # Executar dashboard
 echo -e "${GREEN}A iniciar aplicação...${NC}"
-streamlit run dashboard_v10.py --server.port=8503 --server.address=0.0.0.0 --server.headless=true
+streamlit run dashboard_v10.py --server.port=8503 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false --client.toolbarMode=viewer

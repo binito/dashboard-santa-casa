@@ -285,7 +285,10 @@ class DataLoaderV9:
         Carrega dados das encomendas Delta (Nabeiro) do CSV
         """
         print("📦 Carregando dados da Delta (Nabeiro)...")
-        csv_path = Path('/home/jorge/Documentos/delta/dados/faturas_nabeiro.csv')
+        csv_path = Path(os.getenv(
+            'DELTA_FATURAS_CSV',
+            '/home/jorge/Documentos/delta/dados/faturas_nabeiro.csv'
+        ))
         
         if not csv_path.exists():
             print(f"⚠️ Arquivo Delta não encontrado: {csv_path}")
@@ -319,7 +322,10 @@ class DataLoaderV9:
         """
         Carrega os itens detalhados das faturas Delta
         """
-        csv_path = Path('/home/jorge/Documentos/delta/dados/itens_faturas_nabeiro.csv')
+        csv_path = Path(os.getenv(
+            'DELTA_ITENS_CSV',
+            '/home/jorge/Documentos/delta/dados/itens_faturas_nabeiro.csv'
+        ))
         if not csv_path.exists():
             return pd.DataFrame()
         try:
@@ -329,7 +335,8 @@ class DataLoaderV9:
                 df['Numero_Fatura'] = df['Numero_Fatura'].astype(str)
                 df = df[df['Numero_Fatura'] == str(numero_fatura)]
             return df
-        except:
+        except Exception as e:
+            print(f"❌ Erro ao carregar itens Delta: {e}")
             return pd.DataFrame()
 
     def carregar_tudo_integrado_com_custos(self, data_inicio=None, data_fim=None):

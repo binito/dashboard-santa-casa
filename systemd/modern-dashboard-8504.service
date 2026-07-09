@@ -1,0 +1,16 @@
+[Unit]
+Description=Cafe Martins Modern Web Dashboard 8504
+After=network.target
+
+[Service]
+Type=simple
+User=jorge
+WorkingDirectory=/home/jorge/Documentos/Streamlit
+ExecStart=/home/jorge/Documentos/Streamlit/venv/bin/python /home/jorge/Documentos/Streamlit/modern_dashboard_8504/server.py --host 0.0.0.0 --port 8504
+Restart=always
+RestartSec=8
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
